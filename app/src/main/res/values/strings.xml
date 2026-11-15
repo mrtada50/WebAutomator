@@ -184,7 +184,7 @@
     <string name="h_cond">Choose a condition on a collected value (greater than, less than, contains…). Used with the \"when a condition is met\" option.</string>
     <string name="h_export_csv">Save the results as a CSV file that opens in Excel.</string>
     <string name="h_export_json">Save the results as a JSON file.</string>
-    <string name="h_filter">Choose which automation's results to show.</string>
+    <string name="h_filter">Choose which automation results to show.</string>
     <string name="h_theme">Choose light, dark, or follow the phone.</string>
     <string name="h_lang">Choose the app language.</string>
     <string name="h_nav_home">Your automations, status and latest results.</string>
