@@ -198,8 +198,23 @@
     <string name="move_to_prompt">انقل إلى الموضع</string>
     <string name="move_to_range">الموضع من 1 إلى %1$d</string>
     <string name="position_invalid">موضع غير صالح</string>
-    <string name="h_edit_script">غيّر اسم هذا السكربت وعنوان الموقع.</string>
+    <string name="h_edit_script">افتح الموقع لتضغط على العنصر اللي تريد تغييره، ثم طبّقه على خطوة.</string>
     <string name="h_copy_script">انسخ السكربت كله (بكل خطواته) لتجرّب عليه بأمان.</string>
     <string name="h_insert">أدرج خطوة جديدة مباشرة بعد هذه الخطوة.</string>
     <string name="h_moveto">انقل هذه الخطوة إلى رقم موضع محدد.</string>
+    <string name="script_info">الاسم والعنوان</string>
+    <string name="h_script_info">غيّر اسم هذا السكربت وعنوان الموقع.</string>
+    <string name="edit_mode_title">تعديل: %1$s</string>
+    <string name="edit_pick_step">اختر خطوة</string>
+    <string name="edit_done">تم</string>
+    <string name="edit_choose_title">أي خطوة تريد تغييرها؟</string>
+    <string name="edit_no_selectors">هذا السكربت ما فيه خطوات فيها عنصر محدد</string>
+    <string name="edit_tap_hint">الخطوة %1$d: اضغط على العنصر الجديد في الصفحة ثم اضغط تطبيق</string>
+    <string name="apply_here">تطبيق على هذه الخطوة</string>
+    <string name="edit_applied">تم تحديث الخطوة</string>
+    <string name="edit_no_selection">اضغط على عنصر في الصفحة أولاً</string>
+    <string name="h_apply">استبدل عنصر الخطوة المختارة بالعنصر اللي حددته الآن.</string>
+    <string name="h_retarget">افتح الصفحة واضغط على عنصر جديد لهذه الخطوة.</string>
+    <string name="h_edit_pick">اختر أي خطوة تريد تغييرها.</string>
+    <string name="h_edit_done">أنهِ التعديل وارجع لقائمة الخطوات.</string>
 </resources>

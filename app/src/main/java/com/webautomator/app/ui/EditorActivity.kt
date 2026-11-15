@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.webautomator.app.AppScope
+import com.webautomator.app.MainActivity
 import com.webautomator.app.R
 import com.webautomator.app.data.Action
 import com.webautomator.app.data.ActionJson
@@ -72,9 +73,10 @@ class EditorActivity : AppCompatActivity() {
         root.add(bar2, top = 4)
 
         val bar3 = hbox()
-        bar3.add(btn(R.string.edit_script, R.string.h_edit_script) { editScript() }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        bar3.add(btn(R.string.edit_script, R.string.h_edit_script) { editOnPage(-1) }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         bar3.add(btn(R.string.copy_script, R.string.h_copy_script) { copyScript() }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
         root.add(bar3, top = 4)
+        root.add(btn(R.string.script_info, R.string.h_script_info) { editInfo() }, top = 4)
         root.add(tv(getString(R.string.drag_hint), 12f), top = 8)
 
         rows = RowAdapter { c, box, a, i -> bindAction(c, box, a, i) }
@@ -140,6 +142,7 @@ class EditorActivity : AppCompatActivity() {
         row.add(c.smallBtn("▲", R.string.h_up) { move(i, -1) })
         row.add(c.smallBtn("▼", R.string.h_down) { move(i, 1) })
         row.add(c.smallBtn("⇅", R.string.h_moveto) { moveTo(i) })
+        if (a.selector.isNotBlank()) row.add(c.smallBtn("🎯", R.string.h_retarget) { editOnPage(i) })
         row.add(c.smallBtn("＋", R.string.h_insert) {
             showActionDialog(null) { n -> actions.add(i + 1, n); persist() }
         })
@@ -173,7 +176,18 @@ class EditorActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun editScript() {
+    /** Re-opens the real page in the browser so the user taps the element to change. */
+    private fun editOnPage(index: Int) {
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_EDIT_ID, scriptId)
+                .putExtra(MainActivity.EXTRA_EDIT_INDEX, index)
+        )
+        finish()
+    }
+
+    private fun editInfo() {
         val s = script ?: return
         val nameF = field(R.string.script_name, s.name)
         val urlF = field(R.string.url_hint, s.url, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
@@ -181,7 +195,7 @@ class EditorActivity : AppCompatActivity() {
         form.add(nameF)
         form.add(urlF)
         AlertDialog.Builder(this)
-            .setTitle(R.string.edit_script)
+            .setTitle(R.string.script_info)
             .setView(form)
             .setPositiveButton(R.string.ok) { _, _ ->
                 val newName = nameF.text.toString().trim().ifEmpty { s.name }

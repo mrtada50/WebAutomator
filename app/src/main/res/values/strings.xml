@@ -198,8 +198,23 @@
     <string name="move_to_prompt">Move to position</string>
     <string name="move_to_range">Position from 1 to %1$d</string>
     <string name="position_invalid">Invalid position</string>
-    <string name="h_edit_script">Change this script name and website address.</string>
+    <string name="h_edit_script">Open the website so you can tap the element you want to change, then apply it to a step.</string>
     <string name="h_copy_script">Make a copy of this whole script (with all its steps) to experiment safely.</string>
     <string name="h_insert">Insert a new step right after this one.</string>
     <string name="h_moveto">Move this step to an exact position number.</string>
+    <string name="script_info">Name and address</string>
+    <string name="h_script_info">Change this script name and its website address.</string>
+    <string name="edit_mode_title">Editing: %1$s</string>
+    <string name="edit_pick_step">Choose step</string>
+    <string name="edit_done">Done</string>
+    <string name="edit_choose_title">Which step do you want to change?</string>
+    <string name="edit_no_selectors">This script has no steps with a selected element</string>
+    <string name="edit_tap_hint">Step %1$d: tap the new element on the page, then press Apply</string>
+    <string name="apply_here">Apply to this step</string>
+    <string name="edit_applied">Step updated</string>
+    <string name="edit_no_selection">Tap an element on the page first</string>
+    <string name="h_apply">Replace the element of the chosen step with the one you just selected.</string>
+    <string name="h_retarget">Open the page and tap a new element for this step.</string>
+    <string name="h_edit_pick">Choose which step you want to change.</string>
+    <string name="h_edit_done">Finish editing and go back to the steps list.</string>
 </resources>

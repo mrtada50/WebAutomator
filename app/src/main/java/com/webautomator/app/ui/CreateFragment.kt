@@ -78,6 +78,18 @@ class CreateFragment : Fragment() {
     private var lastPage = ""
     private val draft = mutableListOf<Action>()
 
+    // edit-existing-script mode
+    private var editMode = false
+    private var editScript: ScriptEntity? = null
+    private val editActions = mutableListOf<Action>()
+    private var editIndex = -1
+    private var pendingId = 0L
+    private var pendingIdx = -1
+    private lateinit var editBar: LinearLayout
+    private lateinit var editTitle: TextView
+    private lateinit var applyBtn: MaterialButton
+    private lateinit var btnScroll: HorizontalScrollView
+
     private val selectorJs: String by lazy {
         requireContext().assets.open("selector.js").bufferedReader().use { it.readText() }
     }
@@ -92,6 +104,17 @@ class CreateFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val c = requireContext()
         val root = c.vbox(0)
+
+        // Edit-mode bar (shown only while re-picking elements of a saved script)
+        editBar = c.vbox(8)
+        editBar.visibility = View.GONE
+        editTitle = c.tv("", 13f, true)
+        editBar.add(editTitle)
+        val editRow = c.hbox()
+        editRow.add(c.smallBtn(getString(R.string.edit_pick_step), R.string.h_edit_pick) { chooseStep() })
+        editRow.add(c.smallBtn(getString(R.string.edit_done), R.string.h_edit_done) { finishEdit(true) })
+        editBar.add(editRow)
+        root.add(editBar)
 
         // URL row
         val urlRow = c.hbox()
@@ -194,10 +217,13 @@ class CreateFragment : Fragment() {
         btns.add(c.smallBtn(getString(R.string.a_list), R.string.h_a_list) { pick(ActionType.EXTRACT_LIST) })
         btns.add(c.smallBtn(getString(R.string.a_click), R.string.h_a_click) { pick(ActionType.CLICK) })
         btns.add(c.smallBtn(getString(R.string.a_wait), R.string.h_a_wait) { pick(ActionType.WAIT_ELEMENT) })
-        val btnScroll = HorizontalScrollView(c)
+        btnScroll = HorizontalScrollView(c)
         btnScroll.isHorizontalScrollBarEnabled = false
         btnScroll.addView(btns)
         panel.add(btnScroll)
+        applyBtn = c.btn(R.string.apply_here, R.string.h_apply) { applyEdit() }
+        applyBtn.visibility = View.GONE
+        panel.add(applyBtn)
         root.add(panel)
 
         urlInput.setOnEditorActionListener { _, actionId, _ ->
@@ -285,6 +311,7 @@ class CreateFragment : Fragment() {
                     if (sel != null && sel.selector != current?.selector) {
                         current = sel
                         preview.text = "<${sel.tag}>  ${sel.selector}\n${sel.text}"
+                        applyModeUi()
                         panel.visibility = View.VISIBLE
                     }
                 }
@@ -399,6 +426,118 @@ class CreateFragment : Fragment() {
             .show()
     }
 
+    // ---- edit an existing script by picking elements on the real page ----
+
+    /** Called by MainActivity when the user chooses "Edit script" in the editor. */
+    fun startEdit(id: Long, index: Int) {
+        pendingId = id
+        pendingIdx = index
+        if (view != null) consumePending()
+    }
+
+    private fun consumePending() {
+        val id = pendingId
+        if (id == 0L) return
+        val idx = pendingIdx
+        pendingId = 0L
+        viewLifecycleOwner.lifecycleScope.launch {
+            val s = AppDatabase.get(requireContext()).scripts().get(id) ?: return@launch
+            editScript = s
+            editActions.clear()
+            editActions.addAll(try { ActionJson.decode(s.actionsJson) } catch (e: Exception) { emptyList() })
+            editMode = true
+            editTitle.text = getString(R.string.edit_mode_title, s.name)
+            editBar.visibility = View.VISIBLE
+            applyModeUi()
+            if (idx in editActions.indices && editActions[idx].selector.isNotBlank()) selectStep(idx) else chooseStep()
+        }
+    }
+
+    private fun applyModeUi() {
+        btnScroll.visibility = if (editMode) View.GONE else View.VISIBLE
+        applyBtn.visibility = if (editMode) View.VISIBLE else View.GONE
+    }
+
+    private fun chooseStep() {
+        val c = requireContext()
+        val idxs = editActions.indices.filter { editActions[it].selector.isNotBlank() }
+        if (idxs.isEmpty()) {
+            Toast.makeText(c, R.string.edit_no_selectors, Toast.LENGTH_LONG).show()
+            return
+        }
+        val labels = idxs.map { "${it + 1}. ${actionLabel(c, editActions[it].type)}  ${editActions[it].summary()}" }
+            .toTypedArray()
+        AlertDialog.Builder(c)
+            .setTitle(R.string.edit_choose_title)
+            .setItems(labels) { _, which -> selectStep(idxs[which]) }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun selectStep(idx: Int) {
+        val script = editScript ?: return
+        editIndex = idx
+        var page = script.url
+        for (i in 0..idx) {
+            val a = editActions[i]
+            if (a.type == ActionType.OPEN_URL || a.type == ActionType.NAVIGATE) {
+                page = a.value.ifBlank { script.url }
+            }
+        }
+        editTitle.text = getString(R.string.edit_mode_title, script.name) + "\n" +
+            getString(R.string.edit_tap_hint, idx + 1)
+        current = null
+        panel.visibility = View.GONE
+        selecting = true
+        selectBtn.text = getString(R.string.select_on)
+        startPolling()
+        val valid = UrlUtils.normalize(page)
+        if (valid is UrlResult.Valid) {
+            webView?.loadUrl(valid.url)
+        } else {
+            Toast.makeText(requireContext(), R.string.invalid_url, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun applyEdit() {
+        val sel = current
+        if (sel == null) {
+            Toast.makeText(requireContext(), R.string.edit_no_selection, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val id = editScript?.id ?: return
+        val step = editActions.getOrNull(editIndex) ?: return
+        val newSelector = when (step.type) {
+            ActionType.EXTRACT_TABLE -> sel.table.ifBlank { sel.selector }
+            ActionType.EXTRACT_LIST -> if (sel.listCount > 1) sel.listSelector else sel.selector
+            else -> sel.selector
+        }
+        editActions[editIndex] = step.copy(selector = newSelector)
+        val json = ActionJson.encode(editActions)
+        val db = AppDatabase.get(requireContext())
+        AppScope.launch { db.scripts().updateActions(id, json) }
+        current = null
+        panel.visibility = View.GONE
+        webView?.evaluateJavascript("window.__wa&&window.__wa.clear();", null)
+        Toast.makeText(requireContext(), R.string.edit_applied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun finishEdit(openEditor: Boolean) {
+        val id = editScript?.id
+        editMode = false
+        editScript = null
+        editBar.visibility = View.GONE
+        applyModeUi()
+        selecting = false
+        selectBtn.text = getString(R.string.select_off)
+        pollJob?.cancel()
+        webView?.evaluateJavascript("window.__wa&&window.__wa.disable();", null)
+        panel.visibility = View.GONE
+        if (openEditor && id != null) {
+            startActivity(Intent(requireContext(), EditorActivity::class.java).putExtra(EditorActivity.EXTRA_ID, id))
+        }
+    }
+
     // ---- save ----
 
     private fun save() {
@@ -453,6 +592,7 @@ class CreateFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         webView?.onResume()
+        if (pendingId != 0L && view != null) consumePending()
     }
 
     override fun onPause() {

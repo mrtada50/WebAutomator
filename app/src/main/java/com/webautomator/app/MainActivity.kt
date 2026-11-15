@@ -1,6 +1,7 @@
 package com.webautomator.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -66,10 +67,29 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (intent.getBooleanExtra(EXTRA_RESUME, false)) MonitorService.refresh(this)
+        if (savedInstanceState == null) handleEdit(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleEdit(intent)
+    }
+
+    /** Opens the Create tab in "edit script" mode so the user re-picks elements on the real page. */
+    private fun handleEdit(i: Intent) {
+        val id = i.getLongExtra(EXTRA_EDIT_ID, 0L)
+        if (id == 0L) return
+        val index = i.getIntExtra(EXTRA_EDIT_INDEX, -1)
+        i.removeExtra(EXTRA_EDIT_ID)
+        findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_create
+        (supportFragmentManager.findFragmentByTag(TAG_CREATE) as? CreateFragment)?.startEdit(id, index)
     }
 
     companion object {
         const val EXTRA_RESUME = "resume_monitor"
+        const val EXTRA_EDIT_ID = "edit_script_id"
+        const val EXTRA_EDIT_INDEX = "edit_step_index"
         private const val TAG_HOME = "home"
         private const val TAG_CREATE = "create"
         private const val TAG_RESULTS = "results"
