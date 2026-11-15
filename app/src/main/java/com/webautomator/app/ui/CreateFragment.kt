@@ -100,18 +100,18 @@ class CreateFragment : Fragment() {
         urlInput.imeOptions = EditorInfo.IME_ACTION_GO
         urlInput.setSingleLine(true)
         urlRow.add(urlInput, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        urlRow.add(c.btn(R.string.open) { openFromInput() }, ViewGroup.LayoutParams.WRAP_CONTENT, start = 8)
+        urlRow.add(c.btn(R.string.open, R.string.h_open) { openFromInput() }, ViewGroup.LayoutParams.WRAP_CONTENT, start = 8)
         root.add(urlRow)
 
         // Controls row
         val ctl = c.hbox()
         ctl.setPadding(c.dp(4), 0, c.dp(4), 0)
-        backBtn = c.smallBtn("‹") { webView?.goBack() }
-        forwardBtn = c.smallBtn("›") { webView?.goForward() }
-        val refresh = c.smallBtn("↻") { webView?.reload() }
-        selectBtn = c.smallBtn(getString(R.string.select_off)) { toggleSelect() }
-        actionsBtn = c.smallBtn("") { showDraft() }
-        val saveBtn = c.smallBtn(getString(R.string.save_automation)) { save() }
+        backBtn = c.smallBtn("‹", R.string.h_back) { webView?.goBack() }
+        forwardBtn = c.smallBtn("›", R.string.h_forward) { webView?.goForward() }
+        val refresh = c.smallBtn("↻", R.string.h_refresh) { webView?.reload() }
+        selectBtn = c.smallBtn(getString(R.string.select_off), R.string.h_select) { toggleSelect() }
+        actionsBtn = c.smallBtn("", R.string.h_actions) { showDraft() }
+        val saveBtn = c.smallBtn(getString(R.string.save_automation), R.string.h_save_auto) { save() }
         ctl.add(backBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
         ctl.add(forwardBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
         ctl.add(refresh, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -187,13 +187,13 @@ class CreateFragment : Fragment() {
         preview.maxLines = 5
         panel.add(preview)
         val btns = c.hbox()
-        btns.add(c.smallBtn(getString(R.string.a_text)) { pick(ActionType.EXTRACT_TEXT) })
-        btns.add(c.smallBtn(getString(R.string.a_number)) { pick(ActionType.EXTRACT_NUMBER) })
-        btns.add(c.smallBtn(getString(R.string.a_attr)) { pick(ActionType.EXTRACT_ATTR) })
-        btns.add(c.smallBtn(getString(R.string.a_table)) { pick(ActionType.EXTRACT_TABLE) })
-        btns.add(c.smallBtn(getString(R.string.a_list)) { pick(ActionType.EXTRACT_LIST) })
-        btns.add(c.smallBtn(getString(R.string.a_click)) { pick(ActionType.CLICK) })
-        btns.add(c.smallBtn(getString(R.string.a_wait)) { pick(ActionType.WAIT_ELEMENT) })
+        btns.add(c.smallBtn(getString(R.string.a_text), R.string.h_a_text) { pick(ActionType.EXTRACT_TEXT) })
+        btns.add(c.smallBtn(getString(R.string.a_number), R.string.h_a_number) { pick(ActionType.EXTRACT_NUMBER) })
+        btns.add(c.smallBtn(getString(R.string.a_attr), R.string.h_a_attr) { pick(ActionType.EXTRACT_ATTR) })
+        btns.add(c.smallBtn(getString(R.string.a_table), R.string.h_a_table) { pick(ActionType.EXTRACT_TABLE) })
+        btns.add(c.smallBtn(getString(R.string.a_list), R.string.h_a_list) { pick(ActionType.EXTRACT_LIST) })
+        btns.add(c.smallBtn(getString(R.string.a_click), R.string.h_a_click) { pick(ActionType.CLICK) })
+        btns.add(c.smallBtn(getString(R.string.a_wait), R.string.h_a_wait) { pick(ActionType.WAIT_ELEMENT) })
         val btnScroll = HorizontalScrollView(c)
         btnScroll.isHorizontalScrollBarEnabled = false
         btnScroll.addView(btns)

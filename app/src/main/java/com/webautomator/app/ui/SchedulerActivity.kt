@@ -61,6 +61,7 @@ class SchedulerActivity : AppCompatActivity() {
 
         enabled = MaterialSwitch(this)
         enabled.setText(R.string.enabled)
+        enabled.help(R.string.h_enabled)
         form.add(enabled, top = 8)
 
         interval = field(R.string.interval_min, "60", InputType.TYPE_CLASS_NUMBER)
@@ -69,6 +70,7 @@ class SchedulerActivity : AppCompatActivity() {
 
         onlyNet = CheckBox(this)
         onlyNet.setText(R.string.only_internet)
+        onlyNet.help(R.string.h_only_net)
         form.add(onlyNet, top = 8)
 
         dailyLimit = field(R.string.daily_limit, "0", InputType.TYPE_CLASS_NUMBER)
@@ -76,9 +78,11 @@ class SchedulerActivity : AppCompatActivity() {
 
         form.add(tv(getString(R.string.notif_section), 16f, true), top = 16)
         modeSpinner = Spinner(this)
+        modeSpinner.help(R.string.h_mode)
         modeSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modes.map { notifyModeLabel(this, it) })
         form.add(modeSpinner, top = 4)
         condSpinner = Spinner(this)
+        condSpinner.help(R.string.h_cond)
         condSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, conds.map { conditionLabel(this, it) })
         form.add(condSpinner, top = 4)
         condKey = field(R.string.cond_key)
@@ -87,19 +91,20 @@ class SchedulerActivity : AppCompatActivity() {
         form.add(condValue)
         notifyFail = CheckBox(this)
         notifyFail.setText(R.string.notify_failure)
+        notifyFail.help(R.string.h_notify_fail)
         form.add(notifyFail, top = 4)
 
         nextView = tv("", 13f)
         form.add(nextView, top = 16)
 
-        form.add(btn(R.string.save) { save(false) }, top = 8)
-        startStop = btn(R.string.start) { toggleEnabled() }
+        form.add(btn(R.string.save, R.string.h_save) { save(false) }, top = 8)
+        startStop = btn(R.string.start, R.string.h_startstop) { toggleEnabled() }
         form.add(startStop, top = 4)
-        form.add(btn(R.string.run_now) {
+        form.add(btn(R.string.run_now, R.string.h_run_now) {
             Toast.makeText(this, R.string.run_started, Toast.LENGTH_SHORT).show()
             AppScope.launch { ScriptEngine.run(applicationContext, scriptId, true) }
         }, top = 4)
-        form.add(btn(R.string.battery_opt) {
+        form.add(btn(R.string.battery_opt, R.string.h_battery) {
             try {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             } catch (e: ActivityNotFoundException) {

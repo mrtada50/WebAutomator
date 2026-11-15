@@ -37,7 +37,7 @@ class HomeFragment : Fragment() {
 
         val head = c.hbox()
         head.add(c.tv(getString(R.string.app_name), 20f, true), 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        head.add(c.smallBtn(getString(R.string.settings)) { SettingsDialog.show(requireActivity() as AppCompatActivity) },
+        head.add(c.smallBtn(getString(R.string.settings), R.string.h_settings) { SettingsDialog.show(requireActivity() as AppCompatActivity) },
             ViewGroup.LayoutParams.WRAP_CONTENT)
         root.add(head)
 
@@ -108,12 +108,12 @@ class HomeFragment : Fragment() {
         if (s.lastMessage.isNotBlank()) box.add(c.tv(s.lastMessage, 12f))
 
         val row = c.hbox()
-        row.add(c.smallBtn(getString(R.string.run)) {
+        row.add(c.smallBtn(getString(R.string.run), R.string.h_run) {
             Toast.makeText(c, R.string.run_started, Toast.LENGTH_SHORT).show()
             AppScope.launch { ScriptEngine.run(c.applicationContext, s.id, true) }
         })
-        row.add(c.smallBtn(getString(R.string.edit)) { openEditor(s.id) })
-        row.add(c.smallBtn(getString(R.string.schedule)) {
+        row.add(c.smallBtn(getString(R.string.edit), R.string.h_edit) { openEditor(s.id) })
+        row.add(c.smallBtn(getString(R.string.schedule), R.string.h_schedule) {
             startActivity(Intent(c, SchedulerActivity::class.java).putExtra(EditorActivity.EXTRA_ID, s.id))
         })
         box.add(row)

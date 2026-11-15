@@ -12,6 +12,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.webautomator.app.ui.CreateFragment
 import com.webautomator.app.ui.HomeFragment
 import com.webautomator.app.ui.ResultsFragment
+import com.webautomator.app.ui.help
 import com.webautomator.app.work.MonitorService
 
 class MainActivity : AppCompatActivity() {
@@ -53,6 +54,10 @@ class MainActivity : AppCompatActivity() {
             tx.commit()
             true
         }
+
+        nav.findViewById<android.view.View>(R.id.nav_home)?.help(R.string.h_nav_home)
+        nav.findViewById<android.view.View>(R.id.nav_create)?.help(R.string.h_nav_create)
+        nav.findViewById<android.view.View>(R.id.nav_results)?.help(R.string.h_nav_results)
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED

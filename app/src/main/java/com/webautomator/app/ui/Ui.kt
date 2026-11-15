@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
@@ -44,18 +45,20 @@ fun Context.tv(text: CharSequence?, sp: Float = 14f, bold: Boolean = false): Tex
     return t
 }
 
-fun Context.btn(@StringRes res: Int, onClick: () -> Unit): MaterialButton = btn(getString(res), onClick)
+fun Context.btn(@StringRes res: Int, @StringRes help: Int = 0, onClick: () -> Unit): MaterialButton =
+    btn(getString(res), help, onClick)
 
-fun Context.btn(text: CharSequence, onClick: () -> Unit): MaterialButton {
+fun Context.btn(text: CharSequence, @StringRes help: Int = 0, onClick: () -> Unit): MaterialButton {
     val b = MaterialButton(this)
     b.text = text
     b.isAllCaps = false
     b.setOnClickListener { onClick() }
+    if (help != 0) b.help(help)
     return b
 }
 
 /** Compact text button used inside list rows. */
-fun Context.smallBtn(text: CharSequence, onClick: () -> Unit): MaterialButton {
+fun Context.smallBtn(text: CharSequence, @StringRes help: Int = 0, onClick: () -> Unit): MaterialButton {
     val b = MaterialButton(this, null, android.R.attr.borderlessButtonStyle)
     b.text = text
     b.isAllCaps = false
@@ -65,6 +68,7 @@ fun Context.smallBtn(text: CharSequence, onClick: () -> Unit): MaterialButton {
     b.insetBottom = 0
     b.setPadding(dp(10), 0, dp(10), 0)
     b.setOnClickListener { onClick() }
+    if (help != 0) b.help(help)
     return b
 }
 
@@ -89,6 +93,15 @@ fun LinearLayout.add(
     lp.topMargin = context.dp(top)
     lp.marginStart = context.dp(start)
     addView(v, lp)
+    return this
+}
+
+/** Long-press on any control shows a short, simple explanation of what it does. */
+fun <T : View> T.help(@StringRes res: Int): T {
+    setOnLongClickListener {
+        Toast.makeText(context, res, Toast.LENGTH_LONG).show()
+        true
+    }
     return this
 }
 

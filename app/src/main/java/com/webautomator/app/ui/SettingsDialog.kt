@@ -15,8 +15,10 @@ object SettingsDialog {
         val langCodes = listOf("", "ar", "en")
 
         val themeSpinner = Spinner(activity)
+        themeSpinner.help(R.string.h_theme)
         themeSpinner.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, themes)
         val langSpinner = Spinner(activity)
+        langSpinner.help(R.string.h_lang)
         langSpinner.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, langs)
 
         val form = activity.vbox(20)

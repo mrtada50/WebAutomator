@@ -47,11 +47,12 @@ class ResultsFragment : Fragment() {
         root.add(c.tv(getString(R.string.nav_results), 20f, true))
 
         spinner = Spinner(c)
+        spinner.help(R.string.h_filter)
         root.add(spinner, top = 8)
 
         val row = c.hbox()
-        row.add(c.btn(R.string.export_csv) { export(true) }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        row.add(c.btn(R.string.export_json) { export(false) }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
+        row.add(c.btn(R.string.export_csv, R.string.h_export_csv) { export(true) }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        row.add(c.btn(R.string.export_json, R.string.h_export_json) { export(false) }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
         root.add(row, top = 8)
 
         empty = c.tv(getString(R.string.no_results), 14f)

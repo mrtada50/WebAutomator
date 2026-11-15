@@ -44,24 +44,25 @@ class EditorActivity : AppCompatActivity() {
         val root = vbox(12)
         titleView = tv("", 20f, true)
         titleView.setOnClickListener { rename() }
+        titleView.help(R.string.h_rename)
         urlView = tv("", 12f)
         root.add(titleView)
         root.add(urlView)
 
         val bar = hbox()
-        bar.add(btn(R.string.add_action) { showActionDialog(null) { a -> actions.add(a); persist() } },
+        bar.add(btn(R.string.add_action, R.string.h_add_action) { showActionDialog(null) { a -> actions.add(a); persist() } },
             0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        bar.add(btn(R.string.schedule) {
+        bar.add(btn(R.string.schedule, R.string.h_schedule) {
             startActivity(Intent(this, SchedulerActivity::class.java).putExtra(EXTRA_ID, scriptId))
         }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
         root.add(bar, top = 8)
 
         val bar2 = hbox()
-        bar2.add(btn(R.string.run_now) {
+        bar2.add(btn(R.string.run_now, R.string.h_run_now) {
             Toast.makeText(this, R.string.run_started, Toast.LENGTH_SHORT).show()
             AppScope.launch { ScriptEngine.run(applicationContext, scriptId, true) }
         }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        bar2.add(btn(R.string.delete_script) { confirmDelete() }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
+        bar2.add(btn(R.string.delete_script, R.string.h_delete) { confirmDelete() }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
         root.add(bar2, top = 4)
 
         rows = RowAdapter { c, box, a, i -> bindAction(c, box, a, i) }
@@ -99,11 +100,11 @@ class EditorActivity : AppCompatActivity() {
         val sum = a.summary()
         if (sum.isNotBlank()) box.add(c.tv(sum, 12f))
         val row = c.hbox()
-        row.add(c.smallBtn("▲") { move(i, -1) })
-        row.add(c.smallBtn("▼") { move(i, 1) })
-        row.add(c.smallBtn("✎") { showActionDialog(a) { n -> actions[i] = n; persist() } })
-        row.add(c.smallBtn("⧉") { actions.add(i + 1, a.copy()); persist() })
-        row.add(c.smallBtn("✕") { actions.removeAt(i); persist() })
+        row.add(c.smallBtn("▲", R.string.h_up) { move(i, -1) })
+        row.add(c.smallBtn("▼", R.string.h_down) { move(i, 1) })
+        row.add(c.smallBtn("✎", R.string.h_edit_action) { showActionDialog(a) { n -> actions[i] = n; persist() } })
+        row.add(c.smallBtn("⧉", R.string.h_dup) { actions.add(i + 1, a.copy()); persist() })
+        row.add(c.smallBtn("✕", R.string.h_remove) { actions.removeAt(i); persist() })
         box.add(row)
     }
 
