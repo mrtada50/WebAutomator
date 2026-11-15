@@ -190,4 +190,16 @@
     <string name="h_nav_home">أتمتاتك وحالتها وآخر النتائج.</string>
     <string name="h_nav_create">افتح موقعاً وحدد عناصر في الصفحة وابنِ أتمتة جديدة.</string>
     <string name="h_nav_results">كل البيانات المجموعة والتغييرات والأخطاء مع التصدير.</string>
+    <string name="edit_script">تعديل السكربت</string>
+    <string name="copy_script">نسخ السكربت</string>
+    <string name="copy_suffix">(نسخة)</string>
+    <string name="script_copied">تم نسخ السكربت (معطّل لحد ما تفعّله)</string>
+    <string name="drag_hint">نصيحة: اضغط مطولاً على خطوة واسحبها لتغيير مكانها. استخدم الأسهم أو زر الموضع أو + لإدراج خطوة بعدها.</string>
+    <string name="move_to_prompt">انقل إلى الموضع</string>
+    <string name="move_to_range">الموضع من 1 إلى %1$d</string>
+    <string name="position_invalid">موضع غير صالح</string>
+    <string name="h_edit_script">غيّر اسم هذا السكربت وعنوان الموقع.</string>
+    <string name="h_copy_script">انسخ السكربت كله (بكل خطواته) لتجرّب عليه بأمان.</string>
+    <string name="h_insert">أدرج خطوة جديدة مباشرة بعد هذه الخطوة.</string>
+    <string name="h_moveto">انقل هذه الخطوة إلى رقم موضع محدد.</string>
 </resources>

@@ -114,11 +114,22 @@ class RowAdapter<T>(private val bind: (Context, LinearLayout, T, Int) -> Unit) :
 
     class VH(val box: LinearLayout) : RecyclerView.ViewHolder(box)
 
-    var items: List<T> = emptyList()
+    private var data: List<T> = emptyList()
+
+    var items: List<T>
+        get() = data
         set(value) {
-            field = value
+            data = value
             notifyDataSetChanged()
         }
+
+    /** Used while dragging: reorders without a full reload so the drag animation stays smooth. */
+    fun moveItem(from: Int, to: Int) {
+        val m = data.toMutableList()
+        m.add(to, m.removeAt(from))
+        data = m
+        notifyItemMoved(from, to)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val b = parent.context.vbox(10)
@@ -128,12 +139,12 @@ class RowAdapter<T>(private val bind: (Context, LinearLayout, T, Int) -> Unit) :
         return VH(b)
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = data.size
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.box.removeAllViews()
         holder.box.setOnClickListener(null)
         holder.box.isClickable = false
-        bind(holder.box.context, holder.box, items[position], position)
+        bind(holder.box.context, holder.box, data[position], position)
     }
 }

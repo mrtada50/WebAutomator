@@ -67,6 +67,9 @@ interface ScriptDao {
     @Query("UPDATE scripts SET name = :name WHERE id = :id")
     suspend fun rename(id: Long, name: String)
 
+    @Query("UPDATE scripts SET url = :url WHERE id = :id")
+    suspend fun updateUrl(id: Long, url: String)
+
     @Query("UPDATE scripts SET actionsJson = :json WHERE id = :id")
     suspend fun updateActions(id: Long, json: String)
 

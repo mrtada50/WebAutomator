@@ -190,4 +190,16 @@
     <string name="h_nav_home">Your automations, status and latest results.</string>
     <string name="h_nav_create">Open a website, select items on the page and build a new automation.</string>
     <string name="h_nav_results">All collected data, changes and errors, with export.</string>
+    <string name="edit_script">Edit script</string>
+    <string name="copy_script">Copy script</string>
+    <string name="copy_suffix">(copy)</string>
+    <string name="script_copied">Script copied (disabled until you enable it)</string>
+    <string name="drag_hint">Tip: long-press a step and drag it to move it. Use the arrows, the position button or + to insert a step after it.</string>
+    <string name="move_to_prompt">Move to position</string>
+    <string name="move_to_range">Position from 1 to %1$d</string>
+    <string name="position_invalid">Invalid position</string>
+    <string name="h_edit_script">Change this script name and website address.</string>
+    <string name="h_copy_script">Make a copy of this whole script (with all its steps) to experiment safely.</string>
+    <string name="h_insert">Insert a new step right after this one.</string>
+    <string name="h_moveto">Move this step to an exact position number.</string>
 </resources>
