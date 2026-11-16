@@ -14,6 +14,8 @@ enum class ActionType {
 
 enum class NotifyMode { ALWAYS, ON_CHANGE, ON_CONDITION, ON_DISAPPEAR, NEVER }
 
+enum class NotifyStyle { POPUP, IMPORTANT }
+
 enum class ConditionType { NONE, GREATER, LESS, EQUAL, CONTAINS, NOT_CONTAINS, CHANGED }
 
 enum class Status { IDLE, RUNNING, OK, ERROR, NEEDS_ATTENTION }
@@ -27,10 +29,15 @@ data class Action(
     val value: String = "",
     val attr: String = "",
     val name: String = "",
-    val timeoutMs: Long = 15000
+    val timeoutMs: Long = 15000,
+    /** Optional XPath. When both CSS and XPath are set, CSS is tried first and XPath is the backup. */
+    val xpath: String = ""
 ) {
+    fun hasLocator(): Boolean = selector.isNotBlank() || xpath.isNotBlank()
+
     fun summary(): String =
-        listOf(name, selector, value, attr).filter { it.isNotBlank() }.joinToString(" • ")
+        listOf(name, selector, if (xpath.isNotBlank()) "XPath: $xpath" else "", value, attr)
+            .filter { it.isNotBlank() }.joinToString(" • ")
 }
 
 object ActionJson {
@@ -44,6 +51,7 @@ object ActionJson {
             o.put("attr", a.attr)
             o.put("name", a.name)
             o.put("timeoutMs", a.timeoutMs)
+            o.put("xpath", a.xpath)
             arr.put(o)
         }
         return arr.toString()
@@ -62,7 +70,8 @@ object ActionJson {
                     value = o.optString("value"),
                     attr = o.optString("attr"),
                     name = o.optString("name"),
-                    timeoutMs = o.optLong("timeoutMs", 15000)
+                    timeoutMs = o.optLong("timeoutMs", 15000),
+                    xpath = o.optString("xpath")
                 )
             )
         }

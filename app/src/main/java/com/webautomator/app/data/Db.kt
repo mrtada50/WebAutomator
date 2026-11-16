@@ -1,6 +1,7 @@
 package com.webautomator.app.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -10,6 +11,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "scripts")
@@ -31,7 +34,9 @@ data class ScriptEntity(
     val status: String = Status.IDLE.name,
     val lastMessage: String = "",
     val runsToday: Int = 0,
-    val runsDay: String = ""
+    val runsDay: String = "",
+    @ColumnInfo(defaultValue = "'POPUP'")
+    val notifyStyle: String = NotifyStyle.POPUP.name
 )
 
 @Entity(tableName = "runs", indices = [Index("scriptId")])
@@ -76,8 +81,8 @@ interface ScriptDao {
     @Query("UPDATE scripts SET intervalMinutes = :interval, enabled = :enabled, onlyWithInternet = :onlyNet, dailyLimit = :dailyLimit WHERE id = :id")
     suspend fun updateSchedule(id: Long, interval: Int, enabled: Boolean, onlyNet: Boolean, dailyLimit: Int)
 
-    @Query("UPDATE scripts SET notifyMode = :mode, conditionType = :ct, conditionKey = :ck, conditionValue = :cv, notifyOnFailure = :nf WHERE id = :id")
-    suspend fun updateNotify(id: Long, mode: String, ct: String, ck: String, cv: String, nf: Boolean)
+    @Query("UPDATE scripts SET notifyMode = :mode, conditionType = :ct, conditionKey = :ck, conditionValue = :cv, notifyOnFailure = :nf, notifyStyle = :style WHERE id = :id")
+    suspend fun updateNotify(id: Long, mode: String, ct: String, ck: String, cv: String, nf: Boolean, style: String)
 
     @Query("UPDATE scripts SET lastRunAt = :t, status = :s, lastMessage = :m, runsToday = :r, runsDay = :d WHERE id = :id")
     suspend fun updateRunInfo(id: Long, t: Long, s: String, m: String, r: Int, d: String)
@@ -112,6 +117,9 @@ interface RunDao {
     @Query("DELETE FROM runs WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM runs")
+    suspend fun deleteAll()
+
     @Query("DELETE FROM runs WHERE scriptId = :id")
     suspend fun deleteForScript(id: Long)
 
@@ -119,7 +127,7 @@ interface RunDao {
     suspend fun trim(id: Long, keep: Int)
 }
 
-@Database(entities = [ScriptEntity::class, RunEntity::class], version = 1, exportSchema = false)
+@Database(entities = [ScriptEntity::class, RunEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun scripts(): ScriptDao
     abstract fun runs(): RunDao
@@ -128,13 +136,19 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE scripts ADD COLUMN notifyStyle TEXT NOT NULL DEFAULT 'POPUP'")
+            }
+        }
+
         fun get(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "automator.db"
-                ).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
             }
         }
     }

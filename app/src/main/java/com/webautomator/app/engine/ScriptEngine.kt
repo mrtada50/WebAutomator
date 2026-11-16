@@ -8,6 +8,7 @@ import com.webautomator.app.data.ActionJson
 import com.webautomator.app.data.ConditionType
 import com.webautomator.app.data.MapJson
 import com.webautomator.app.data.NotifyMode
+import com.webautomator.app.data.NotifyStyle
 import com.webautomator.app.data.RunEntity
 import com.webautomator.app.data.ScriptEntity
 import com.webautomator.app.data.Status
@@ -130,7 +131,7 @@ object ScriptEngine {
 
                 override suspend fun notify(message: String, values: Map<String, String>) {
                     val text = if (message.isBlank()) summarize(values) else render(message, values)
-                    Notifier.post(app, script.id, script.name, text, alert = false)
+                    Notifier.post(app, script.id, script.name, text, alert = false, popup = script.notifyStyle == NotifyStyle.POPUP.name)
                 }
             }
 
@@ -243,7 +244,10 @@ object ScriptEngine {
         }
         if (!send) return
         val body = if (cmp.changed && !cmp.first) cmp.summary else summarize(values)
-        Notifier.post(app, script.id, app.getString(R.string.notif_title, script.name), body, alert = false)
+        Notifier.post(
+            app, script.id, app.getString(R.string.notif_title, script.name), body,
+            alert = false, popup = script.notifyStyle == NotifyStyle.POPUP.name
+        )
     }
 
     private fun summarize(values: Map<String, String>): String =

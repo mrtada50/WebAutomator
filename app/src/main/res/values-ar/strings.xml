@@ -136,7 +136,7 @@
     <string name="err_no_internet">لا يوجد اتصال بالإنترنت</string>
     <string name="err_domain">الصفحة خرجت عن الموقع المسموح</string>
 
-    <string name="ch_results">النتائج</string>
+    <string name="ch_results">إشعارات مهمة (بدون انبثاق)</string>
     <string name="ch_alerts">التنبيهات</string>
     <string name="ch_service">المراقبة بالخلفية</string>
     <string name="notif_title">Website Monitor: %1$s</string>
@@ -269,4 +269,29 @@
     <string name="hint_message">الرسالة (استخدم {name} لقيمة)</string>
     <string name="back">رجوع</string>
     <string name="forward">للأمام</string>
+    <string name="notif_style_title">نمط الإشعار</string>
+    <string name="notif_style_hint">النمطان مهمان: يصدران صوتاً ويبقيان في شريط الإشعارات.</string>
+    <string name="style_popup">منبثق ومهم</string>
+    <string name="style_important">مهم بدون انبثاق</string>
+    <string name="test_notification">إشعار تجريبي</string>
+    <string name="notif_settings">إعدادات النظام</string>
+    <string name="test_notif_title">إشعار تجريبي</string>
+    <string name="test_notif_text">هكذا ستظهر لك الإشعارات.</string>
+    <string name="test_sent">تم إرسال التجربة</string>
+    <string name="h_style">المنبثق يظهر أعلى الشاشة مباشرة. المهم بدون انبثاق يظهر في شريط الحالة بصوت لكنه لا يغطي الشاشة.</string>
+    <string name="h_test">أرسل إشعاراً تجريبياً بالنمط الذي اخترته.</string>
+    <string name="h_notif_settings">افتح إعدادات إشعارات أندرويد لتغيير الصوت والانبثاق والأهمية لكل نوع.</string>
+    <string name="ch_popup">إشعارات مهمة (منبثقة)</string>
+    <string name="f_xpath">XPath (اختياري، يُستخدم إذا CSS فارغ أو ما لقى شي)</string>
+    <string name="locate_by">التحديد بواسطة</string>
+    <string name="loc_css">CSS</string>
+    <string name="loc_xpath">XPath</string>
+    <string name="loc_both">الاثنين</string>
+    <string name="h_loc">اختر كيف يُوجد العنصر عند تشغيل الأتمتة. الاثنين يجرّب CSS أولاً ثم XPath كبديل.</string>
+    <string name="clear_history">مسح السجل</string>
+    <string name="clear_btn">حذف</string>
+    <string name="clear_all_confirm">حذف كل النتائج المحفوظة؟ تبدأ المقارنة من جديد عند التشغيل القادم.</string>
+    <string name="clear_one_confirm">حذف نتائج الأتمتة المحددة في الفلتر؟ تبدأ المقارنة من جديد عند التشغيل القادم.</string>
+    <string name="history_cleared">تم مسح السجل</string>
+    <string name="h_clear">احذف النتائج المحفوظة: كلها، أو فقط الأتمتة المحددة في الفلتر.</string>
 </resources>

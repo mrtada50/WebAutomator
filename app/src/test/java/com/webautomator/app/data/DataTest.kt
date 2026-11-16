@@ -15,6 +15,15 @@ class DataTest {
         assertEquals(list, ActionJson.decode(ActionJson.encode(list)))
     }
 
+    @Test fun xpathRoundTripAndLocator() {
+        val a = Action(ActionType.CLICK, selector = "#go", xpath = "//button[1]")
+        val back = ActionJson.decode(ActionJson.encode(listOf(a)))[0]
+        assertEquals("//button[1]", back.xpath)
+        assertTrue(back.hasLocator())
+        assertTrue(Action(ActionType.CLICK, xpath = "//a").hasLocator())
+        assertEquals(false, Action(ActionType.CLICK).hasLocator())
+    }
+
     private val run = RunEntity(
         scriptId = 1, scriptName = "script1", timestamp = 0L, success = true,
         valuesJson = MapJson.encode(mapOf("price" to "125")),

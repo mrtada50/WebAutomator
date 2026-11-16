@@ -136,7 +136,7 @@
     <string name="err_no_internet">No internet connection</string>
     <string name="err_domain">Page left the allowed website</string>
 
-    <string name="ch_results">Results</string>
+    <string name="ch_results">Important notifications (no pop-up)</string>
     <string name="ch_alerts">Alerts</string>
     <string name="ch_service">Background monitoring</string>
     <string name="notif_title">Website Monitor: %1$s</string>
@@ -269,4 +269,29 @@
     <string name="hint_message">Message (use {name} for a value)</string>
     <string name="back">Back</string>
     <string name="forward">Forward</string>
+    <string name="notif_style_title">Notification style</string>
+    <string name="notif_style_hint">Both styles are important: they make a sound and stay in the notification shade.</string>
+    <string name="style_popup">Pop-up alert</string>
+    <string name="style_important">Important, no pop-up</string>
+    <string name="test_notification">Send a test</string>
+    <string name="notif_settings">System settings</string>
+    <string name="test_notif_title">Test notification</string>
+    <string name="test_notif_text">This is how your notifications will look.</string>
+    <string name="test_sent">Test sent</string>
+    <string name="h_style">Pop-up alert appears on top of the screen right away. Important, no pop-up shows in the status bar with a sound but does not cover the screen.</string>
+    <string name="h_test">Send a sample notification with the style you selected.</string>
+    <string name="h_notif_settings">Open Android notification settings to change sound, pop-up and importance for each type.</string>
+    <string name="ch_popup">Important alerts (pop-up)</string>
+    <string name="f_xpath">XPath (optional, used if CSS is empty or finds nothing)</string>
+    <string name="locate_by">Locate by</string>
+    <string name="loc_css">CSS</string>
+    <string name="loc_xpath">XPath</string>
+    <string name="loc_both">Both</string>
+    <string name="h_loc">Choose how the element is found when the automation runs. Both tries CSS first, then XPath as a backup.</string>
+    <string name="clear_history">Clear history</string>
+    <string name="clear_btn">Delete</string>
+    <string name="clear_all_confirm">Delete all saved results? Comparison starts again from the next run.</string>
+    <string name="clear_one_confirm">Delete the saved results of the selected automation? Comparison starts again from the next run.</string>
+    <string name="history_cleared">History cleared</string>
+    <string name="h_clear">Delete saved results: all of them, or only the automation selected in the filter.</string>
 </resources>

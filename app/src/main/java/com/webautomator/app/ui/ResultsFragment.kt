@@ -21,14 +21,18 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.chip.ChipGroup
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.webautomator.app.AppScope
 import com.webautomator.app.R
 import com.webautomator.app.data.AppDatabase
 import com.webautomator.app.data.MapJson
 import com.webautomator.app.data.RunEntity
 import com.webautomator.app.data.ScriptEntity
 import com.webautomator.app.util.Export
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ResultsFragment : Fragment() {
 
@@ -55,6 +59,7 @@ class ResultsFragment : Fragment() {
         val export = c.iconBtn(R.drawable.ic_download, R.string.export, R.string.h_export) {}
         export.setOnClickListener { v -> showExportMenu(v) }
         head.addWrap(export)
+        head.addWrap(c.iconBtn(R.drawable.ic_delete, R.string.clear_history, R.string.h_clear) { confirmClear() })
         root.add(head)
 
         val scroll = HorizontalScrollView(c)
@@ -184,6 +189,27 @@ class ResultsFragment : Fragment() {
                 add(e, top = 6)
             }
         }
+    }
+
+    private fun confirmClear() {
+        val ctx = requireContext()
+        val id = selectedId
+        val msg = if (id == 0L) R.string.clear_all_confirm else R.string.clear_one_confirm
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(R.string.clear_history)
+            .setMessage(msg)
+            .setPositiveButton(R.string.clear_btn) { _, _ ->
+                val db = AppDatabase.get(ctx)
+                val app = ctx.applicationContext
+                AppScope.launch {
+                    if (id == 0L) db.runs().deleteAll() else db.runs().deleteForScript(id)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(app, R.string.history_cleared, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun showExportMenu(anchor: View) {

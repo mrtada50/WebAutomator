@@ -202,7 +202,7 @@ class EditorActivity : AppCompatActivity() {
     private fun showStepMenu(anchor: View, a: Action, i: Int) {
         val pm = PopupMenu(this, anchor)
         pm.menu.add(0, 1, 0, R.string.edit)
-        if (a.selector.isNotBlank()) pm.menu.add(0, 2, 1, R.string.pick_on_page)
+        if (a.hasLocator()) pm.menu.add(0, 2, 1, R.string.pick_on_page)
         pm.menu.add(0, 3, 2, R.string.insert_after)
         pm.menu.add(0, 4, 3, R.string.move_to_prompt)
         pm.menu.add(0, 5, 4, R.string.duplicate)
@@ -254,6 +254,7 @@ class EditorActivity : AppCompatActivity() {
 
         val nameF = input(R.string.f_name, existing?.name ?: "")
         val selF = input(R.string.f_selector, existing?.selector ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        val xpF = input(R.string.f_xpath, existing?.xpath ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
         val valF = input(R.string.f_value, existing?.value ?: "")
         val attrF = input(R.string.f_attr, existing?.attr ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
         val toF = input(R.string.f_timeout, ((existing?.timeoutMs ?: 15000L) / 1000).toString(), InputType.TYPE_CLASS_NUMBER)
@@ -262,6 +263,7 @@ class EditorActivity : AppCompatActivity() {
             val t = types[spinner.selectedItemPosition]
             nameF.visibility = if (t.isExtraction()) View.VISIBLE else View.GONE
             selF.visibility = if (needsSelector(t)) View.VISIBLE else View.GONE
+            xpF.visibility = if (needsSelector(t)) View.VISIBLE else View.GONE
             valF.visibility = if (needsValue(t)) View.VISIBLE else View.GONE
             valF.hint = getString(valueHint(t))
             attrF.visibility = if (t == ActionType.EXTRACT_ATTR) View.VISIBLE else View.GONE
@@ -277,6 +279,7 @@ class EditorActivity : AppCompatActivity() {
         form.add(spinner)
         form.add(nameF, top = 8)
         form.add(selF, top = 8)
+        form.add(xpF, top = 8)
         form.add(valF, top = 8)
         form.add(attrF, top = 8)
         form.add(toF, top = 8)
@@ -288,7 +291,8 @@ class EditorActivity : AppCompatActivity() {
             .setPositiveButton(R.string.ok) { _, _ ->
                 val t = types[spinner.selectedItemPosition]
                 val selector = selF.str()
-                if (needsSelector(t) && selector.isBlank()) {
+                val xpath = xpF.str()
+                if (needsSelector(t) && selector.isBlank() && xpath.isBlank()) {
                     Toast.makeText(this, R.string.need_selector, Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
@@ -297,6 +301,7 @@ class EditorActivity : AppCompatActivity() {
                     Action(
                         type = t,
                         selector = if (needsSelector(t)) selector else "",
+                        xpath = if (needsSelector(t)) xpath else "",
                         value = if (needsValue(t)) valF.str() else "",
                         attr = if (t == ActionType.EXTRACT_ATTR) attrF.str() else "",
                         name = if (t.isExtraction()) nameF.str() else "",

@@ -137,7 +137,7 @@ class WebRunner(context: Context) {
             ActionType.WAIT_LOAD -> waitReady(timeout)
             ActionType.WAIT_ELEMENT -> {
                 needSelector(a)
-                awaitResult(a.selector, elementJs(a.selector, "return {found:true};"), timeout) {
+                awaitResult(locator(a), elementJs(a, "return {found:true};"), timeout) {
                     it.optBoolean("found")
                 }
             }
@@ -145,8 +145,8 @@ class WebRunner(context: Context) {
             ActionType.CLICK -> {
                 needSelector(a)
                 awaitResult(
-                    a.selector,
-                    elementJs(a.selector, "try{e.scrollIntoView({block:'center'});}catch(x){} e.click(); return {found:true};"),
+                    locator(a),
+                    elementJs(a, "try{e.scrollIntoView({block:'center'});}catch(x){} e.click(); return {found:true};"),
                     timeout
                 ) { it.optBoolean("found") }
                 delay(800)
@@ -154,14 +154,14 @@ class WebRunner(context: Context) {
             }
             ActionType.EXTRACT_TEXT -> {
                 needSelector(a)
-                val o = awaitResult(a.selector, elementJs(a.selector, TEXT_BODY), timeout) {
+                val o = awaitResult(locator(a), elementJs(a, TEXT_BODY), timeout) {
                     it.optBoolean("found") && it.optString("text").isNotBlank()
                 }
                 values[key(a, values, suffix)] = o.optString("text")
             }
             ActionType.EXTRACT_NUMBER -> {
                 needSelector(a)
-                val o = awaitResult(a.selector, elementJs(a.selector, TEXT_BODY), timeout) {
+                val o = awaitResult(locator(a), elementJs(a, TEXT_BODY), timeout) {
                     it.optBoolean("found") && NumberParser.parse(it.optString("text")) != null
                 }
                 val n = NumberParser.parse(o.optString("text"))
@@ -174,14 +174,14 @@ class WebRunner(context: Context) {
                 val body = "var a=" + JSONObject.quote(a.attr) +
                     ";var v=(a==='href'&&e.href)?e.href:((a==='src'&&e.src)?e.src:e.getAttribute(a));" +
                     "return {found:true,value:(v===null||v===undefined)?'':String(v)};"
-                val o = awaitResult(a.selector, elementJs(a.selector, body), timeout) {
+                val o = awaitResult(locator(a), elementJs(a, body), timeout) {
                     it.optBoolean("found") && it.optString("value").isNotBlank()
                 }
                 values[key(a, values, suffix)] = o.optString("value")
             }
             ActionType.EXTRACT_TABLE -> {
                 needSelector(a)
-                val o = awaitResult(a.selector, elementJs(a.selector, TABLE_BODY), timeout) {
+                val o = awaitResult(locator(a), elementJs(a, TABLE_BODY), timeout) {
                     it.optBoolean("found") && (it.optJSONArray("rows")?.length() ?: 0) > 0
                 }
                 val rows = o.getJSONArray("rows")
@@ -198,10 +198,8 @@ class WebRunner(context: Context) {
             }
             ActionType.EXTRACT_LIST -> {
                 needSelector(a)
-                val js = "(function(){var n=document.querySelectorAll(" + JSONObject.quote(a.selector) +
-                    ");var items=Array.prototype.map.call(n,function(e){return (e.innerText||e.textContent||'').trim();});" +
-                    "return {found:n.length>0,items:items};})()"
-                val o = awaitResult(a.selector, js, timeout) {
+                val js = listJs(a)
+                val o = awaitResult(locator(a), js, timeout) {
                     it.optBoolean("found") && (it.optJSONArray("items")?.length() ?: 0) > 0
                 }
                 val items = o.getJSONArray("items")
@@ -227,7 +225,7 @@ class WebRunner(context: Context) {
     }
 
     private fun needSelector(a: Action) {
-        if (a.selector.isBlank()) throw ScriptException(ErrorKind.SELECTOR_MISSING, "(empty selector)")
+        if (!a.hasLocator()) throw ScriptException(ErrorKind.SELECTOR_MISSING, "(empty selector)")
     }
 
     private fun key(a: Action, values: Map<String, String>, suffix: String): String =
@@ -356,9 +354,23 @@ class WebRunner(context: Context) {
         }
     }
 
-    private fun elementJs(selector: String, body: String): String =
-        "(function(){var e=document.querySelector(" + JSONObject.quote(selector) +
-            ");if(!e)return {found:false};" + body + "})()"
+    private fun locator(a: Action): String = a.selector.ifBlank { a.xpath }
+
+    /** Finds one element by CSS first, then by XPath as a backup, then runs [body] on it. */
+    private fun elementJs(a: Action, body: String): String =
+        "(function(){var e=null;var c=" + JSONObject.quote(a.selector) + ";var xp=" + JSONObject.quote(a.xpath) +
+            ";if(c){try{e=document.querySelector(c);}catch(x){}}" +
+            "if(!e&&xp){try{e=document.evaluate(xp,document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue;}catch(x){}}" +
+            "if(!e)return {found:false};" + body + "})()"
+
+    /** All matching elements by CSS, or by XPath when CSS finds none. */
+    private fun listJs(a: Action): String =
+        "(function(){var n=[];var c=" + JSONObject.quote(a.selector) + ";var xp=" + JSONObject.quote(a.xpath) +
+            ";if(c){try{n=Array.prototype.slice.call(document.querySelectorAll(c));}catch(x){}}" +
+            "if(!n.length&&xp){try{var r=document.evaluate(xp,document,null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null);" +
+            "for(var i=0;i<r.snapshotLength;i++){n.push(r.snapshotItem(i));}}catch(x){}}" +
+            "var items=n.map(function(e){return (e.innerText||e.textContent||'').trim();});" +
+            "return {found:n.length>0,items:items};})()"
 
     private companion object {
         const val TOTAL_TIMEOUT_MS = 120_000L

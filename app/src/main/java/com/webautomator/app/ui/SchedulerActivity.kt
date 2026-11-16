@@ -21,9 +21,11 @@ import com.webautomator.app.R
 import com.webautomator.app.data.AppDatabase
 import com.webautomator.app.data.ConditionType
 import com.webautomator.app.data.NotifyMode
+import com.webautomator.app.data.NotifyStyle
 import com.webautomator.app.data.ScriptEntity
 import com.webautomator.app.data.enumOr
 import com.webautomator.app.engine.ScriptEngine
+import com.webautomator.app.work.Notifier
 import com.webautomator.app.work.Scheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,6 +45,7 @@ class SchedulerActivity : AppCompatActivity() {
     private lateinit var onlyNet: SwitchRow
     private lateinit var dailyLimit: TextInputLayout
     private lateinit var modeChips: ChipGroup
+    private lateinit var styleChips: ChipGroup
     private lateinit var condBox: View
     private lateinit var condSpinner: Spinner
     private lateinit var condKey: TextInputLayout
@@ -53,6 +56,7 @@ class SchedulerActivity : AppCompatActivity() {
     private val presetIds = HashMap<Int, Int>() // chip id -> minutes
     private val modes = NotifyMode.values()
     private val modeIds = HashMap<Int, NotifyMode>()
+    private val styleIds = HashMap<Int, NotifyStyle>()
     private val conds = ConditionType.values()
     private var syncing = false
 
@@ -150,6 +154,28 @@ class SchedulerActivity : AppCompatActivity() {
 
             notifyFail = switchRow(R.string.notify_failure, 0, R.string.h_notify_fail)
             add(notifyFail.view, top = 12)
+
+            add(heading(getString(R.string.notif_style_title)), top = 16)
+            add(caption(getString(R.string.notif_style_hint), 12f), top = 2)
+            styleChips = ChipGroup(this@SchedulerActivity)
+            styleChips.isSingleSelection = true
+            styleChips.isSelectionRequired = true
+            val styleLabels = mapOf(
+                NotifyStyle.POPUP to getString(R.string.style_popup),
+                NotifyStyle.IMPORTANT to getString(R.string.style_important)
+            )
+            for ((style, label) in styleLabels) {
+                val ch = chip(label, R.drawable.ic_notification, true)
+                styleIds[ch.id] = style
+                styleChips.addView(ch)
+            }
+            styleChips.help(R.string.h_style)
+            add(styleChips, top = 4)
+
+            val tools = hbox()
+            tools.addWrap(tonalBtn(getString(R.string.test_notification), R.drawable.ic_notification, R.string.h_test) { sendTest() })
+            tools.addWrap(textBtn(getString(R.string.notif_settings), 0, R.string.h_notif_settings) { Notifier.openSystemSettings(this@SchedulerActivity) }, start = 8)
+            add(tools, top = 8)
         }, top = 12)
 
         val scroll = ScrollView(this)
@@ -231,12 +257,26 @@ class SchedulerActivity : AppCompatActivity() {
         condKey.editText?.setText(s.conditionKey)
         condValue.editText?.setText(s.conditionValue)
         notifyFail.sw.isChecked = s.notifyOnFailure
+        val style = enumOr(s.notifyStyle, NotifyStyle.POPUP)
+        val styleChip = styleIds.entries.firstOrNull { it.value == style }
+        if (styleChip != null) styleChips.check(styleChip.key)
         refreshNext(s)
     }
 
     private fun refreshNext(s: ScriptEntity) {
         val next = Scheduler.nextEstimate(s)
         nextView.text = if (next == 0L) getString(R.string.next_none) else getString(R.string.next_run_fmt, fmtTime(next))
+    }
+
+    /** Sends a sample notification using the selected style so the user sees exactly what to expect. */
+    private fun sendTest() {
+        val popup = (styleIds[styleChips.checkedChipId] ?: NotifyStyle.POPUP) == NotifyStyle.POPUP
+        Notifier.post(
+            applicationContext, scriptId,
+            getString(R.string.test_notif_title), getString(R.string.test_notif_text),
+            alert = false, popup = popup
+        )
+        Toast.makeText(this, R.string.test_sent, Toast.LENGTH_SHORT).show()
     }
 
     private fun openBatterySettings() {
@@ -261,13 +301,14 @@ class SchedulerActivity : AppCompatActivity() {
         val ck = condKey.str()
         val cv = condValue.str()
         val nf = notifyFail.sw.isChecked
+        val style = (styleIds[styleChips.checkedChipId] ?: NotifyStyle.POPUP).name
         val id = scriptId
         val app = applicationContext
 
         AppScope.launch {
             val dao = db.scripts()
             dao.updateSchedule(id, minutes, isEnabled, net, limit)
-            dao.updateNotify(id, mode, ct, ck, cv, nf)
+            dao.updateNotify(id, mode, ct, ck, cv, nf, style)
             val fresh = dao.get(id) ?: return@launch
             Scheduler.apply(app, fresh)
             withContext(Dispatchers.Main) {

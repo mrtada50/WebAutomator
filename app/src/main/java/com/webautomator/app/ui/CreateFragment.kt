@@ -31,6 +31,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.webautomator.app.AppScope
 import com.webautomator.app.R
@@ -82,6 +83,10 @@ class CreateFragment : Fragment() {
     private lateinit var editBanner: MaterialCardView
     private lateinit var editTitle: TextView
 
+    private enum class Loc { CSS, XPATH, BOTH }
+
+    private var locMode = Loc.BOTH
+    private lateinit var locRow: View
     private var selecting = false
     private var current: Sel? = null
     private var pollJob: Job? = null
@@ -217,7 +222,7 @@ class CreateFragment : Fragment() {
         preview.maxLines = 2
         preview.ellipsize = TextUtils.TruncateAt.END
         selectorText = c.caption("", 11f)
-        selectorText.maxLines = 1
+        selectorText.maxLines = 2
         selectorText.ellipsize = TextUtils.TruncateAt.MIDDLE
         chipsScroll = HorizontalScrollView(c)
         chipsScroll.isHorizontalScrollBarEnabled = false
@@ -229,6 +234,27 @@ class CreateFragment : Fragment() {
             head.addWrap(c.iconBtn(R.drawable.ic_close, R.string.close, 0) { clearSelection() })
             add(head)
             add(selectorText, top = 2)
+
+            val lr = c.vbox(0)
+            lr.add(c.caption(c.getString(R.string.locate_by), 12f))
+            val lg = ChipGroup(c)
+            lg.isSingleSelection = true
+            lg.isSelectionRequired = true
+            val ids = HashMap<Int, Loc>()
+            val labels = listOf(Loc.CSS to R.string.loc_css, Loc.XPATH to R.string.loc_xpath, Loc.BOTH to R.string.loc_both)
+            for ((mode, label) in labels) {
+                val ch = c.chip(c.getString(label), 0, true)
+                ids[ch.id] = mode
+                lg.addView(ch)
+                if (mode == locMode) lg.check(ch.id)
+            }
+            lg.setOnCheckedStateChangeListener { _, checked ->
+                locMode = checked.firstOrNull()?.let { ids[it] } ?: Loc.BOTH
+            }
+            lg.help(R.string.h_loc)
+            lr.add(lg, top = 2)
+            locRow = lr
+            add(lr, top = 6)
 
             val chips = c.hbox()
             chips.addWrap(c.chip(c.getString(R.string.a_text), R.drawable.ic_text).also { it.setOnClickListener { pick(ActionType.EXTRACT_TEXT) }; it.help(R.string.h_a_text) })
@@ -315,14 +341,16 @@ class CreateFragment : Fragment() {
             tagPill.visibility = View.GONE
             preview.text = getString(R.string.sel_hint_short)
             selectorText.visibility = View.GONE
+            locRow.visibility = View.GONE
             chipsScroll.visibility = View.GONE
             applyBtn.visibility = View.GONE
         } else {
             tagPill.visibility = View.VISIBLE
             tagPill.text = "<${sel.tag}>"
             preview.text = sel.text.ifBlank { getString(R.string.no_text) }
-            selectorText.text = sel.selector
+            selectorText.text = "CSS: ${sel.selector}\nXPath: ${sel.xpath}"
             selectorText.visibility = View.VISIBLE
+            locRow.visibility = View.VISIBLE
             chipsScroll.visibility = if (editMode) View.GONE else View.VISIBLE
             applyBtn.visibility = if (editMode) View.VISIBLE else View.GONE
         }
@@ -414,9 +442,9 @@ class CreateFragment : Fragment() {
         val sel = current ?: return
         when (type) {
             ActionType.CLICK, ActionType.WAIT_ELEMENT ->
-                addAction(Action(type, selector = sel.selector))
+                addAction(locate(Action(type), sel))
             ActionType.EXTRACT_ATTR -> askName(true, sel.attrs.firstOrNull() ?: "href") { name, attr ->
-                addAction(Action(type, selector = sel.selector, attr = attr, name = name))
+                addAction(locate(Action(type, attr = attr, name = name), sel))
             }
             ActionType.EXTRACT_TABLE -> askName(false, "") { name, _ ->
                 addAction(Action(type, selector = sel.table.ifBlank { sel.selector }, name = name))
@@ -427,9 +455,16 @@ class CreateFragment : Fragment() {
                 addAction(Action(type, selector = s, name = name))
             }
             else -> askName(false, "") { name, _ ->
-                addAction(Action(type, selector = sel.selector, name = name))
+                addAction(locate(Action(type, name = name), sel))
             }
         }
+    }
+
+    /** Fills CSS and/or XPath on a single-element step according to the chosen "locate by" mode. */
+    private fun locate(a: Action, sel: Sel): Action = when (locMode) {
+        Loc.CSS -> a.copy(selector = sel.selector, xpath = "")
+        Loc.XPATH -> a.copy(selector = "", xpath = sel.xpath)
+        Loc.BOTH -> a.copy(selector = sel.selector, xpath = sel.xpath)
     }
 
     private fun askName(withAttr: Boolean, defaultAttr: String, onOk: (String, String) -> Unit) {
@@ -512,13 +547,13 @@ class CreateFragment : Fragment() {
             editTitle.text = getString(R.string.edit_mode_title, s.name)
             editBanner.visibility = View.VISIBLE
             renderPanel()
-            if (idx in editActions.indices && editActions[idx].selector.isNotBlank()) selectStep(idx) else chooseStep()
+            if (idx in editActions.indices && editActions[idx].hasLocator()) selectStep(idx) else chooseStep()
         }
     }
 
     private fun chooseStep() {
         val c = requireContext()
-        val idxs = editActions.indices.filter { editActions[it].selector.isNotBlank() }
+        val idxs = editActions.indices.filter { editActions[it].hasLocator() }
         if (idxs.isEmpty()) {
             Toast.makeText(c, R.string.edit_no_selectors, Toast.LENGTH_LONG).show()
             return
@@ -565,12 +600,12 @@ class CreateFragment : Fragment() {
         }
         val id = editScript?.id ?: return
         val step = editActions.getOrNull(editIndex) ?: return
-        val newSelector = when (step.type) {
-            ActionType.EXTRACT_TABLE -> sel.table.ifBlank { sel.selector }
-            ActionType.EXTRACT_LIST -> if (sel.listCount > 1) sel.listSelector else sel.selector
-            else -> sel.selector
+        editActions[editIndex] = when (step.type) {
+            ActionType.EXTRACT_TABLE -> step.copy(selector = sel.table.ifBlank { sel.selector }, xpath = "")
+            ActionType.EXTRACT_LIST ->
+                step.copy(selector = if (sel.listCount > 1) sel.listSelector else sel.selector, xpath = "")
+            else -> locate(step, sel)
         }
-        editActions[editIndex] = step.copy(selector = newSelector)
         val json = ActionJson.encode(editActions)
         val db = AppDatabase.get(requireContext())
         AppScope.launch { db.scripts().updateActions(id, json) }
