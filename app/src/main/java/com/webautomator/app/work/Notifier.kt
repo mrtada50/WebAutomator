@@ -18,6 +18,7 @@ object Notifier {
     const val CH_POPUP = "results_popup"
     const val CH_ALERTS = "alerts"
     const val CH_SERVICE = "service"
+    private const val MAX_ACTIVE = 40
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -38,8 +39,45 @@ object Notifier {
         )
     }
 
+    private var lastId = 0
+
+    /** Every notification gets its own id, so a new one is always a new entry on top and older ones stay below it. */
+    @Synchronized
+    private fun nextId(): Int {
+        var id = ((System.currentTimeMillis() / 10) % 1_900_000_000L).toInt() + 100
+        if (id <= lastId) id = lastId + 1
+        lastId = id
+        return id
+    }
+
+    /** Keeps the shade tidy: only the newest notifications of this app are kept. */
+    private fun trimOld(ctx: Context) {
+        if (Build.VERSION.SDK_INT < 23) return
+        try {
+            val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+            val ours = nm.activeNotifications.filter { it.id != 1 && it.id != 2 && it.id != 999_999 }
+            if (ours.size > MAX_ACTIVE) {
+                ours.sortedBy { it.postTime }.take(ours.size - MAX_ACTIVE).forEach { nm.cancel(it.id) }
+            }
+        } catch (e: Exception) {
+            // best effort
+        }
+    }
+
+    /**
+     * [text] is the full content (shown when expanded). [collapsed] is the single line shown before expanding;
+     * Android always collapses notification text, so all values are joined on that line as far as the screen allows.
+     */
     @SuppressLint("MissingPermission")
-    fun post(ctx: Context, scriptId: Long, title: String, text: String, alert: Boolean, popup: Boolean = true) {
+    fun post(
+        ctx: Context,
+        scriptId: Long,
+        title: String,
+        text: String,
+        alert: Boolean,
+        popup: Boolean = true,
+        collapsed: String? = null
+    ) {
         val nm = NotificationManagerCompat.from(ctx)
         if (!nm.areNotificationsEnabled()) return
         ensureChannels(ctx)
@@ -59,12 +97,16 @@ object Notifier {
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentTitle(title)
-            .setContentText(text.lineSequence().firstOrNull() ?: "")
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentText(collapsed ?: (text.lineSequence().firstOrNull() ?: ""))
+            .setStyle(NotificationCompat.BigTextStyle().setBigContentTitle(title).bigText(text))
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
+            .setOnlyAlertOnce(false)
             .setContentIntent(pi)
             .setAutoCancel(true)
             .build()
-        nm.notify((scriptId % 100000).toInt() * 2 + (if (alert) 1 else 0), n)
+        trimOld(ctx)
+        nm.notify(nextId(), n)
     }
 
     /** Opens the system screen where the user can change sound, pop-up and importance per channel. */

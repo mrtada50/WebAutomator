@@ -130,8 +130,12 @@ object ScriptEngine {
                 }
 
                 override suspend fun notify(message: String, values: Map<String, String>) {
-                    val text = if (message.isBlank()) summarize(values) else render(message, values)
-                    Notifier.post(app, script.id, script.name, text, alert = false, popup = script.notifyStyle == NotifyStyle.POPUP.name)
+                    val text = if (message.isBlank()) fullText(app, values, null) else render(message, values)
+                    Notifier.post(
+                        app, script.id, script.name, text, alert = false,
+                        popup = script.notifyStyle == NotifyStyle.POPUP.name,
+                        collapsed = if (message.isBlank()) oneLine(values) else null
+                    )
                 }
             }
 
@@ -243,15 +247,33 @@ object ScriptEngine {
             NotifyMode.ON_DISAPPEAR, NotifyMode.NEVER -> false
         }
         if (!send) return
-        val body = if (cmp.changed && !cmp.first) cmp.summary else summarize(values)
         Notifier.post(
-            app, script.id, app.getString(R.string.notif_title, script.name), body,
-            alert = false, popup = script.notifyStyle == NotifyStyle.POPUP.name
+            app, script.id, app.getString(R.string.notif_title, script.name), fullText(app, values, cmp),
+            alert = false, popup = script.notifyStyle == NotifyStyle.POPUP.name,
+            collapsed = oneLine(values)
         )
     }
 
-    private fun summarize(values: Map<String, String>): String =
-        values.entries.joinToString("\n") { it.key + ": " + it.value.replace('\n', ' ').take(120) }
+    /** Every selected value in full (lists and tables one row per line), followed by what changed. */
+    private fun fullText(app: Context, values: Map<String, String>, cmp: Comparison?): String {
+        val sb = StringBuilder()
+        for ((k, v) in values) {
+            if (v.contains('\n')) {
+                sb.append(k).append(":\n")
+                for (line in v.lines()) sb.append("• ").append(line).append('\n')
+            } else {
+                sb.append(k).append(": ").append(v).append('\n')
+            }
+        }
+        if (cmp != null && cmp.changed && !cmp.first) {
+            sb.append('\n').append(app.getString(R.string.changes)).append('\n').append(cmp.summary)
+        }
+        return sb.toString().trim()
+    }
+
+    /** All values on one line, for the collapsed notification. */
+    private fun oneLine(values: Map<String, String>): String =
+        values.entries.joinToString(" • ") { it.key + ": " + it.value.replace('\n', ' ') }
 
     private fun render(template: String, values: Map<String, String>): String {
         var s = template

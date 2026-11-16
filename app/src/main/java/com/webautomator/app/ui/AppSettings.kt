@@ -15,10 +15,18 @@ private val Context.settingsStore by preferencesDataStore(name = "settings")
 object AppSettings {
     private val THEME = intPreferencesKey("theme")
     private val LANG = stringPreferencesKey("lang")
+    private val DEFAULT_URL = stringPreferencesKey("default_url")
 
     suspend fun load(ctx: Context): Pair<Int, String> {
         val p = ctx.settingsStore.data.first()
         return Pair(p[THEME] ?: 0, p[LANG] ?: "")
+    }
+
+    /** Website opened automatically when the user starts building an automation. */
+    suspend fun loadDefaultUrl(ctx: Context): String = ctx.settingsStore.data.first()[DEFAULT_URL] ?: ""
+
+    suspend fun saveDefaultUrl(ctx: Context, url: String) {
+        ctx.settingsStore.edit { it[DEFAULT_URL] = url }
     }
 
     suspend fun save(ctx: Context, theme: Int, lang: String) {

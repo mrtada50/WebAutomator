@@ -163,7 +163,7 @@
     <string name="h_a_attr">Collect a hidden value of the item, like a link address (href) or image address (src).</string>
     <string name="h_a_table">Collect all rows and columns of the table that contains the selected item.</string>
     <string name="h_a_list">Collect all items that look like the selected one (for example all product names).</string>
-    <string name="h_a_click">Add a step that taps the selected item, like a button, when the automation runs.</string>
+    <string name="h_a_click">Add a click step and also click the item on the page now, so you can continue on the next page.</string>
     <string name="h_a_wait">Add a step that waits until the selected item appears on the page.</string>
     <string name="h_add_action">Add a new step to this automation.</string>
     <string name="h_run_now">Run this automation immediately.</string>
@@ -297,4 +297,10 @@
     <string name="list_choice_title">What should be collected?</string>
     <string name="list_all">All %1$d similar items</string>
     <string name="list_one">Only the item I selected</string>
+    <string name="default_url">Default website address</string>
+    <string name="default_url_title">Default website</string>
+    <string name="h_default_url">This website opens automatically when you start building an automation. Leave empty to disable.</string>
+    <string name="default_url_missing">Set a default website in Settings first</string>
+    <string name="home_site">Default website</string>
+    <string name="h_home_site">Open your default website.</string>
 </resources>

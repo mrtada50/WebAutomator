@@ -163,7 +163,7 @@
     <string name="h_a_attr">اجمع قيمة مخفية في العنصر مثل عنوان الرابط (href) أو عنوان الصورة (src).</string>
     <string name="h_a_table">اجمع كل صفوف وأعمدة الجدول اللي فيه العنصر المحدد.</string>
     <string name="h_a_list">اجمع كل العناصر المشابهة للعنصر المحدد (مثلاً كل أسماء المنتجات).</string>
-    <string name="h_a_click">أضف خطوة تضغط على العنصر المحدد، مثل زر، عند تشغيل الأتمتة.</string>
+    <string name="h_a_click">أضف خطوة ضغط وتنفّذ الضغطة على الصفحة الآن، لتكمل على الصفحة التالية.</string>
     <string name="h_a_wait">أضف خطوة تنتظر ظهور العنصر المحدد في الصفحة.</string>
     <string name="h_add_action">أضف خطوة جديدة لهذه الأتمتة.</string>
     <string name="h_run_now">شغّل هذه الأتمتة فوراً.</string>
@@ -297,4 +297,10 @@
     <string name="list_choice_title">ماذا تريد أن تجمع؟</string>
     <string name="list_all">كل العناصر المشابهة (%1$d)</string>
     <string name="list_one">العنصر اللي حددته فقط</string>
+    <string name="default_url">عنوان الموقع الافتراضي</string>
+    <string name="default_url_title">الموقع الافتراضي</string>
+    <string name="h_default_url">يُفتح هذا الموقع تلقائياً عند بدء بناء أتمتة. اتركه فارغاً لتعطيله.</string>
+    <string name="default_url_missing">حدد موقعاً افتراضياً من الإعدادات أولاً</string>
+    <string name="home_site">الموقع الافتراضي</string>
+    <string name="h_home_site">افتح موقعك الافتراضي.</string>
 </resources>

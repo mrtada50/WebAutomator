@@ -87,6 +87,8 @@ class CreateFragment : Fragment() {
 
     private var locMode = Loc.BOTH
     private lateinit var locRow: View
+    private var currentUrl = ""
+    private var defaultLoaded = false
     private var selecting = false
     private var current: Sel? = null
     private var pollJob: Job? = null
@@ -141,11 +143,15 @@ class CreateFragment : Fragment() {
         urlInput.setTextColor(c.themeColor(com.google.android.material.R.attr.colorOnSurface))
         backBtn = c.iconBtn(R.drawable.ic_back, R.string.back, R.string.h_back) { webView?.goBack() }
         forwardBtn = c.iconBtn(R.drawable.ic_forward, R.string.forward, R.string.h_forward) { webView?.goForward() }
+        val homeBtn = c.iconBtn(R.drawable.ic_home, R.string.home_site, R.string.h_home_site) {
+            viewLifecycleOwner.lifecycleScope.launch { openDefault(false) }
+        }
         val addr = c.cardWith(0) {
             val r = c.hbox()
             r.setPadding(c.dp(4), 0, c.dp(4), 0)
             r.addWrap(backBtn)
             r.addWrap(forwardBtn)
+            r.addWrap(homeBtn)
             r.add(urlInput, 0, WRAP, 1f, start = 4)
             r.addWrap(c.textBtn(c.getString(R.string.open), 0, R.string.h_open) { openFromInput() })
             add(r)
@@ -184,6 +190,7 @@ class CreateFragment : Fragment() {
             override fun onPageStarted(v: WebView, url: String?, favicon: Bitmap?) {
                 emptyHint.visibility = View.GONE
                 progress.visibility = View.VISIBLE
+                if (url != null) currentUrl = url
                 if (!urlInput.hasFocus() && url != null) urlInput.setText(url)
                 current = null
                 renderPanel()
@@ -196,6 +203,11 @@ class CreateFragment : Fragment() {
             }
 
             override fun doUpdateVisitedHistory(v: WebView, url: String?, isReload: Boolean) {
+                // Also fires for in-page (single-page app) navigation, where onPageStarted does not.
+                if (url != null) {
+                    currentUrl = url
+                    if (!urlInput.hasFocus()) urlInput.setText(url)
+                }
                 updateNav()
             }
 
@@ -441,7 +453,11 @@ class CreateFragment : Fragment() {
     private fun pick(type: ActionType) {
         val sel = current ?: return
         when (type) {
-            ActionType.CLICK, ActionType.WAIT_ELEMENT ->
+            ActionType.CLICK -> {
+                addAction(locate(Action(type), sel))
+                clickNow(sel) // follow the click in the browser so the next steps are recorded on the new page
+            }
+            ActionType.WAIT_ELEMENT ->
                 addAction(locate(Action(type), sel))
             ActionType.EXTRACT_ATTR -> askName(true, sel.attrs.firstOrNull() ?: "href") { name, attr ->
                 addAction(locate(Action(type, attr = attr, name = name), sel))
@@ -483,6 +499,49 @@ class CreateFragment : Fragment() {
         Loc.BOTH -> a.copy(selector = sel.selector, xpath = sel.xpath)
     }
 
+    /** Performs the click on the live page, with selection paused so the page receives it. */
+    private fun clickNow(sel: Sel) {
+        val css = if (locMode == Loc.XPATH) "" else sel.selector
+        val js = "(function(){var e=null;var c=" + JSONObject.quote(css) + ";var xp=" + JSONObject.quote(sel.xpath) +
+            ";if(c){try{e=document.querySelector(c);}catch(x){}}" +
+            "if(!e&&xp){try{e=document.evaluate(xp,document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue;}catch(x){}}" +
+            "if(!e)return false;window.__wa&&window.__wa.disable();try{e.click();}catch(x){}" +
+            "setTimeout(function(){window.__wa&&window.__wa.enable();},600);return true;})()"
+        webView?.evaluateJavascript(js, null)
+        viewLifecycleOwner.lifecycleScope.launch {
+            delay(1800)
+            val key = UrlUtils.pageKey(currentUrl.ifEmpty { webView?.url ?: "" })
+            if (key.isNotEmpty()) lastPage = key
+        }
+    }
+
+    // ---- default website ----
+
+    private fun maybeLoadDefault() {
+        if (defaultLoaded || isHidden || view == null || editMode || pendingId != 0L) return
+        if (!webView?.url.isNullOrBlank()) {
+            defaultLoaded = true
+            return
+        }
+        defaultLoaded = true
+        viewLifecycleOwner.lifecycleScope.launch { openDefault(true) }
+    }
+
+    private suspend fun openDefault(silent: Boolean) {
+        val d = AppSettings.loadDefaultUrl(requireContext())
+        val valid = UrlUtils.normalize(d)
+        if (valid is UrlResult.Valid) {
+            if (draft.isEmpty()) {
+                startUrl = valid.url
+                lastPage = UrlUtils.pageKey(valid.url)
+            }
+            urlInput.setText(valid.url)
+            webView?.loadUrl(valid.url)
+        } else if (!silent) {
+            Toast.makeText(requireContext(), R.string.default_url_missing, Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun askName(withAttr: Boolean, defaultAttr: String, onOk: (String, String) -> Unit) {
         val c = requireContext()
         val name = c.input(R.string.f_name, "value${draft.count { it.type.isExtraction() } + 1}")
@@ -504,7 +563,7 @@ class CreateFragment : Fragment() {
     }
 
     private fun addAction(a: Action) {
-        val cur = webView?.url ?: ""
+        val cur = currentUrl.ifEmpty { webView?.url ?: "" }
         val key = UrlUtils.pageKey(cur)
         if (key.isNotEmpty() && key != lastPage) {
             draft.add(Action(ActionType.NAVIGATE, value = cur))
@@ -687,6 +746,7 @@ class CreateFragment : Fragment() {
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
         if (view != null) updateNav()
+        if (!hidden) maybeLoadDefault()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -700,6 +760,7 @@ class CreateFragment : Fragment() {
         super.onResume()
         webView?.onResume()
         if (pendingId != 0L && view != null) consumePending()
+        maybeLoadDefault()
     }
 
     override fun onPause() {
