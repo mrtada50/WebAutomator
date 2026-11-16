@@ -294,4 +294,7 @@
     <string name="clear_one_confirm">حذف نتائج الأتمتة المحددة في الفلتر؟ تبدأ المقارنة من جديد عند التشغيل القادم.</string>
     <string name="history_cleared">تم مسح السجل</string>
     <string name="h_clear">احذف النتائج المحفوظة: كلها، أو فقط الأتمتة المحددة في الفلتر.</string>
+    <string name="list_choice_title">ماذا تريد أن تجمع؟</string>
+    <string name="list_all">كل العناصر المشابهة (%1$d)</string>
+    <string name="list_one">العنصر اللي حددته فقط</string>
 </resources>

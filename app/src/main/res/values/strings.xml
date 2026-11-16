@@ -294,4 +294,7 @@
     <string name="clear_one_confirm">Delete the saved results of the selected automation? Comparison starts again from the next run.</string>
     <string name="history_cleared">History cleared</string>
     <string name="h_clear">Delete saved results: all of them, or only the automation selected in the filter.</string>
+    <string name="list_choice_title">What should be collected?</string>
+    <string name="list_all">All %1$d similar items</string>
+    <string name="list_one">Only the item I selected</string>
 </resources>

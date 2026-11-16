@@ -450,9 +450,25 @@ class CreateFragment : Fragment() {
                 addAction(Action(type, selector = sel.table.ifBlank { sel.selector }, name = name))
             }
             ActionType.EXTRACT_LIST -> askName(false, "") { name, _ ->
-                val s = if (sel.listCount > 1) sel.listSelector else sel.selector
-                Toast.makeText(requireContext(), getString(R.string.list_count, sel.listCount), Toast.LENGTH_SHORT).show()
-                addAction(Action(type, selector = s, name = name))
+                if (sel.listCount > 1) {
+                    // The list selector drops :nth-child so it matches every similar item.
+                    // Ask explicitly so a single selected item is never turned into a whole list by surprise.
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.list_choice_title)
+                        .setItems(
+                            arrayOf(getString(R.string.list_all, sel.listCount), getString(R.string.list_one))
+                        ) { _, which ->
+                            if (which == 0) {
+                                addAction(Action(type, selector = sel.listSelector, name = name))
+                            } else {
+                                addAction(locate(Action(type, name = name), sel))
+                            }
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
+                } else {
+                    addAction(locate(Action(type, name = name), sel))
+                }
             }
             else -> askName(false, "") { name, _ ->
                 addAction(locate(Action(type, name = name), sel))
