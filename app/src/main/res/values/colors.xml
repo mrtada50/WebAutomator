@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#2F5DEB</color>
+    <color name="on_brand">#FFFFFF</color>
+    <color name="brand_container">#DCE5FF</color>
+    <color name="on_brand_container">#0B2A7A</color>
+    <color name="bg">#F5F7FB</color>
+    <color name="card">#FFFFFF</color>
+    <color name="stroke">#E3E7EF</color>
+    <color name="text_secondary">#6B7385</color>
+    <color name="success">#1E8E4E</color>
+    <color name="success_bg">#E1F4E9</color>
+    <color name="warning">#B26A00</color>
+    <color name="warning_bg">#FFF1D6</color>
+    <color name="danger">#C62828</color>
+    <color name="danger_bg">#FDE7E7</color>
+    <color name="white">#FFFFFF</color>
+</resources>

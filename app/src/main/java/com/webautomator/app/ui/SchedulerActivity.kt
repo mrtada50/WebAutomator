@@ -5,17 +5,17 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
-import android.view.ViewGroup
+import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.CheckBox
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.chip.ChipGroup
+import com.google.android.material.textfield.TextInputLayout
 import com.webautomator.app.AppScope
 import com.webautomator.app.R
 import com.webautomator.app.data.AppDatabase
@@ -25,96 +25,152 @@ import com.webautomator.app.data.ScriptEntity
 import com.webautomator.app.data.enumOr
 import com.webautomator.app.engine.ScriptEngine
 import com.webautomator.app.work.Scheduler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 
-/** Schedule, start/stop, run now and notification rules for one script. */
+/** When and how often an automation runs, and when it should notify. */
 class SchedulerActivity : AppCompatActivity() {
 
     private var scriptId = 0L
     private lateinit var db: AppDatabase
-    private lateinit var titleView: TextView
-    private lateinit var enabled: MaterialSwitch
-    private lateinit var interval: android.widget.EditText
-    private lateinit var onlyNet: CheckBox
-    private lateinit var dailyLimit: android.widget.EditText
-    private lateinit var modeSpinner: Spinner
-    private lateinit var condSpinner: Spinner
-    private lateinit var condKey: android.widget.EditText
-    private lateinit var condValue: android.widget.EditText
-    private lateinit var notifyFail: CheckBox
+    private lateinit var subtitle: TextView
+    private lateinit var auto: SwitchRow
+    private lateinit var intervalChips: ChipGroup
+    private lateinit var intervalInput: TextInputLayout
+    private lateinit var shortInfo: View
     private lateinit var nextView: TextView
-    private lateinit var startStop: MaterialButton
+    private lateinit var onlyNet: SwitchRow
+    private lateinit var dailyLimit: TextInputLayout
+    private lateinit var modeChips: ChipGroup
+    private lateinit var condBox: View
+    private lateinit var condSpinner: Spinner
+    private lateinit var condKey: TextInputLayout
+    private lateinit var condValue: TextInputLayout
+    private lateinit var notifyFail: SwitchRow
 
+    private val presets = listOf(1, 5, 10, 15, 30, 60, 180, 360, 720, 1440)
+    private val presetIds = HashMap<Int, Int>() // chip id -> minutes
     private val modes = NotifyMode.values()
+    private val modeIds = HashMap<Int, NotifyMode>()
     private val conds = ConditionType.values()
+    private var syncing = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         db = AppDatabase.get(this)
         scriptId = intent.getLongExtra(EditorActivity.EXTRA_ID, 0L)
 
-        val form = vbox(16)
-        titleView = tv("", 20f, true)
-        form.add(titleView)
+        val root = vbox(0)
+        root.setPadding(dp(16), dp(8), dp(16), dp(8))
 
-        enabled = MaterialSwitch(this)
-        enabled.setText(R.string.enabled)
-        enabled.help(R.string.h_enabled)
-        form.add(enabled, top = 8)
+        val header = hbox()
+        header.addWrap(iconBtn(R.drawable.ic_back, R.string.back, R.string.h_back) { finish() })
+        val titles = vbox(0)
+        titles.add(tv(getString(R.string.sched_title), 20f, true))
+        subtitle = caption("", 12f)
+        titles.add(subtitle)
+        header.add(titles, 0, WRAP, 1f, start = 4)
+        root.add(header)
 
-        interval = field(R.string.interval_min, "60", InputType.TYPE_CLASS_NUMBER)
-        form.add(interval, top = 8)
-        form.add(tv(getString(R.string.interval_note), 12f))
+        val body = vbox(0)
+        body.setPadding(0, dp(8), 0, dp(16))
 
-        onlyNet = CheckBox(this)
-        onlyNet.setText(R.string.only_internet)
-        onlyNet.help(R.string.h_only_net)
-        form.add(onlyNet, top = 8)
+        // ---- automatic run ----
+        body.add(cardWith(16) {
+            auto = switchRow(R.string.auto_run, R.string.auto_run_sub, R.string.h_enabled)
+            add(auto.view)
 
-        dailyLimit = field(R.string.daily_limit, "0", InputType.TYPE_CLASS_NUMBER)
-        form.add(dailyLimit, top = 4)
-
-        form.add(tv(getString(R.string.notif_section), 16f, true), top = 16)
-        modeSpinner = Spinner(this)
-        modeSpinner.help(R.string.h_mode)
-        modeSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modes.map { notifyModeLabel(this, it) })
-        form.add(modeSpinner, top = 4)
-        condSpinner = Spinner(this)
-        condSpinner.help(R.string.h_cond)
-        condSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, conds.map { conditionLabel(this, it) })
-        form.add(condSpinner, top = 4)
-        condKey = field(R.string.cond_key)
-        form.add(condKey)
-        condValue = field(R.string.cond_value)
-        form.add(condValue)
-        notifyFail = CheckBox(this)
-        notifyFail.setText(R.string.notify_failure)
-        notifyFail.help(R.string.h_notify_fail)
-        form.add(notifyFail, top = 4)
-
-        nextView = tv("", 13f)
-        form.add(nextView, top = 16)
-
-        form.add(btn(R.string.save, R.string.h_save) { save(false) }, top = 8)
-        startStop = btn(R.string.start, R.string.h_startstop) { toggleEnabled() }
-        form.add(startStop, top = 4)
-        form.add(btn(R.string.run_now, R.string.h_run_now) {
-            Toast.makeText(this, R.string.run_started, Toast.LENGTH_SHORT).show()
-            AppScope.launch { ScriptEngine.run(applicationContext, scriptId, true) }
-        }, top = 4)
-        form.add(btn(R.string.battery_opt, R.string.h_battery) {
-            try {
-                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            } catch (e: ActivityNotFoundException) {
-                Toast.makeText(this, R.string.export_fail, Toast.LENGTH_SHORT).show()
+            add(heading(getString(R.string.repeat_every)), top = 16)
+            intervalChips = ChipGroup(this@SchedulerActivity)
+            intervalChips.isSingleSelection = true
+            intervalChips.isSelectionRequired = false
+            for (m in presets) {
+                val ch = chip(shortInterval(this@SchedulerActivity, m), 0, true)
+                presetIds[ch.id] = m
+                intervalChips.addView(ch)
             }
-        }, top = 4)
+            add(intervalChips, top = 4)
 
-        setContentView(ScrollView(this).apply {
-            addView(form, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        })
+            intervalInput = input(R.string.interval_min, "60", InputType.TYPE_CLASS_NUMBER)
+            add(intervalInput, top = 8)
+
+            shortInfo = cardWith(12, R.color.warning_bg, false) {
+                val t = tv(getString(R.string.short_interval_info), 13f)
+                t.setTextColor(color(R.color.warning))
+                add(t)
+                add(textBtn(getString(R.string.battery_opt), 0, R.string.h_battery) { openBatterySettings() }, WRAP, WRAP, top = 4)
+            }
+            shortInfo.visibility = View.GONE
+            add(shortInfo, top = 12)
+
+            nextView = caption("", 12f)
+            add(nextView, top = 10)
+        }, top = 8)
+
+        // ---- rules ----
+        body.add(cardWith(16) {
+            add(heading(getString(R.string.rules_title)))
+            onlyNet = switchRow(R.string.only_internet, 0, R.string.h_only_net)
+            add(onlyNet.view, top = 12)
+            dailyLimit = input(R.string.daily_limit, "0", InputType.TYPE_CLASS_NUMBER)
+            add(dailyLimit, top = 12)
+        }, top = 12)
+
+        // ---- notifications ----
+        body.add(cardWith(16) {
+            add(heading(getString(R.string.notify_me)))
+            modeChips = ChipGroup(this@SchedulerActivity)
+            modeChips.isSingleSelection = true
+            modeChips.isSelectionRequired = true
+            for (m in modes) {
+                val ch = chip(notifyModeLabel(this@SchedulerActivity, m), 0, true)
+                modeIds[ch.id] = m
+                modeChips.addView(ch)
+            }
+            modeChips.help(R.string.h_mode)
+            add(modeChips, top = 4)
+
+            val cb = vbox(0)
+            cb.add(caption(getString(R.string.cond_hint), 12f))
+            condSpinner = Spinner(this@SchedulerActivity)
+            condSpinner.adapter = ArrayAdapter(
+                this@SchedulerActivity, android.R.layout.simple_spinner_dropdown_item,
+                conds.map { conditionLabel(this@SchedulerActivity, it) }
+            )
+            condSpinner.help(R.string.h_cond)
+            cb.add(condSpinner, top = 4)
+            condKey = input(R.string.cond_key)
+            cb.add(condKey, top = 8)
+            condValue = input(R.string.cond_value)
+            cb.add(condValue, top = 8)
+            condBox = cb
+            condBox.visibility = View.GONE
+            add(cb, top = 8)
+
+            notifyFail = switchRow(R.string.notify_failure, 0, R.string.h_notify_fail)
+            add(notifyFail.view, top = 12)
+        }, top = 12)
+
+        val scroll = ScrollView(this)
+        scroll.addView(body)
+        root.add(scroll, MATCH, 0, 1f)
+
+        // ---- sticky actions ----
+        val bar = hbox()
+        bar.setPadding(0, dp(8), 0, 0)
+        bar.add(filledBtn(getString(R.string.save_changes), R.drawable.ic_check, R.string.h_save) { save() }, 0, WRAP, 2f)
+        bar.add(
+            tonalBtn(getString(R.string.run_now), R.drawable.ic_play, R.string.h_run_now) {
+                Toast.makeText(this, R.string.run_started, Toast.LENGTH_SHORT).show()
+                AppScope.launch { ScriptEngine.run(applicationContext, scriptId, true) }
+            },
+            0, WRAP, 1.4f, start = 8
+        )
+        root.add(bar)
+        setContentView(root)
+
+        wireInteractions()
 
         lifecycleScope.launch {
             val s = db.scripts().get(scriptId)
@@ -126,45 +182,85 @@ class SchedulerActivity : AppCompatActivity() {
         }
     }
 
+    private fun wireInteractions() {
+        intervalChips.setOnCheckedStateChangeListener { _, ids ->
+            if (syncing) return@setOnCheckedStateChangeListener
+            val m = ids.firstOrNull()?.let { presetIds[it] }
+            if (m != null) {
+                syncing = true
+                intervalInput.editText?.setText(m.toString())
+                syncing = false
+                refreshInfo()
+            }
+        }
+        intervalInput.editText?.doAfterTextChanged {
+            if (syncing) return@doAfterTextChanged
+            val v = it?.toString()?.toIntOrNull()
+            syncing = true
+            val match = presetIds.entries.firstOrNull { e -> e.value == v }
+            if (match != null) intervalChips.check(match.key) else intervalChips.clearCheck()
+            syncing = false
+            refreshInfo()
+        }
+        modeChips.setOnCheckedStateChangeListener { _, ids ->
+            val mode = ids.firstOrNull()?.let { modeIds[it] }
+            condBox.visibility = if (mode == NotifyMode.ON_CONDITION) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun refreshInfo() {
+        val m = intervalInput.str().toIntOrNull() ?: 0
+        shortInfo.visibility = if (m in 1 until Scheduler.MIN_PERIODIC) View.VISIBLE else View.GONE
+    }
+
     private fun fill(s: ScriptEntity) {
-        titleView.text = s.name
-        enabled.isChecked = s.enabled
-        interval.setText(s.intervalMinutes.toString())
-        onlyNet.isChecked = s.onlyWithInternet
-        dailyLimit.setText(s.dailyLimit.toString())
-        modeSpinner.setSelection(modes.indexOf(enumOr(s.notifyMode, NotifyMode.ON_CHANGE)))
+        subtitle.text = s.name
+        auto.sw.isChecked = s.enabled
+        syncing = true
+        intervalInput.editText?.setText(s.intervalMinutes.toString())
+        val match = presetIds.entries.firstOrNull { it.value == s.intervalMinutes }
+        if (match != null) intervalChips.check(match.key) else intervalChips.clearCheck()
+        syncing = false
+        refreshInfo()
+        onlyNet.sw.isChecked = s.onlyWithInternet
+        dailyLimit.editText?.setText(s.dailyLimit.toString())
+        val mode = enumOr(s.notifyMode, NotifyMode.ON_CHANGE)
+        val modeChip = modeIds.entries.firstOrNull { it.value == mode }
+        if (modeChip != null) modeChips.check(modeChip.key)
         condSpinner.setSelection(conds.indexOf(enumOr(s.conditionType, ConditionType.NONE)))
-        condKey.setText(s.conditionKey)
-        condValue.setText(s.conditionValue)
-        notifyFail.isChecked = s.notifyOnFailure
+        condKey.editText?.setText(s.conditionKey)
+        condValue.editText?.setText(s.conditionValue)
+        notifyFail.sw.isChecked = s.notifyOnFailure
         refreshNext(s)
     }
 
     private fun refreshNext(s: ScriptEntity) {
         val next = Scheduler.nextEstimate(s)
         nextView.text = if (next == 0L) getString(R.string.next_none) else getString(R.string.next_run_fmt, fmtTime(next))
-        startStop.setText(if (s.enabled) R.string.stop else R.string.start)
     }
 
-    private fun toggleEnabled() {
-        enabled.isChecked = !enabled.isChecked
-        save(true)
+    private fun openBatterySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.export_fail, Toast.LENGTH_SHORT).show()
+        }
     }
 
-    private fun save(fromToggle: Boolean) {
-        val minutes = interval.text.toString().toIntOrNull()
+    private fun save() {
+        val minutes = intervalInput.str().toIntOrNull()
         if (minutes == null || minutes < 1) {
             Toast.makeText(this, R.string.interval_invalid, Toast.LENGTH_SHORT).show()
             return
         }
-        val limit = dailyLimit.text.toString().toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val isEnabled = enabled.isChecked
-        val net = onlyNet.isChecked
-        val mode = modes[modeSpinner.selectedItemPosition].name
+        val limit = dailyLimit.str().toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val isEnabled = auto.sw.isChecked
+        val net = onlyNet.sw.isChecked
+        val mode = (modeIds[modeChips.checkedChipId] ?: NotifyMode.ON_CHANGE).name
         val ct = conds[condSpinner.selectedItemPosition].name
-        val ck = condKey.text.toString().trim()
-        val cv = condValue.text.toString().trim()
-        val nf = notifyFail.isChecked
+        val ck = condKey.str()
+        val cv = condValue.str()
+        val nf = notifyFail.sw.isChecked
         val id = scriptId
         val app = applicationContext
 
@@ -175,9 +271,9 @@ class SchedulerActivity : AppCompatActivity() {
             val fresh = dao.get(id) ?: return@launch
             Scheduler.apply(app, fresh)
             withContext(Dispatchers.Main) {
-                refreshNext(fresh)
                 val msg = if (isEnabled && minutes < Scheduler.MIN_PERIODIC) R.string.saved_foreground else R.string.saved_toast
                 Toast.makeText(this@SchedulerActivity, msg, Toast.LENGTH_LONG).show()
+                finish()
             }
         }
     }

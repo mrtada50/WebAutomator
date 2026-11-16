@@ -14,6 +14,9 @@ import com.webautomator.app.data.Status
 import com.webautomator.app.data.enumOr
 import com.webautomator.app.ui.errorText
 import com.webautomator.app.util.Network
+import com.webautomator.app.util.UrlUtils
+import com.webautomator.app.work.Scheduler
+import kotlin.random.Random
 import com.webautomator.app.work.Notifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -36,6 +39,11 @@ object ScriptEngine {
     private val running: MutableSet<Long> = ConcurrentHashMap.newKeySet()
     private val execMutex = Mutex()
 
+    // Be gentle with sites: spread runs out and never hit the same host back-to-back.
+    private val lastRunByHost = ConcurrentHashMap<String, Long>()
+    private const val MIN_GAP_MS = 60_000L
+    private const val JITTER_MAX_MS = 20_000L
+
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
     /** Runs one script. Never runs the same script twice at once; runs are serialized. */
@@ -45,7 +53,13 @@ object ScriptEngine {
         val script = db.scripts().get(scriptId) ?: return RunOutcome.Skipped("missing")
         if (!running.add(scriptId)) return RunOutcome.Skipped("already running")
         try {
-            return execMutex.withLock { execute(app, db, script, manual) }
+            return execMutex.withLock {
+                try {
+                    execute(app, db, script, manual)
+                } finally {
+                    lastRunByHost[UrlUtils.hostOf(script.url)] = System.currentTimeMillis()
+                }
+            }
         } finally {
             running.remove(scriptId)
         }
@@ -57,6 +71,13 @@ object ScriptEngine {
         val runsToday = if (script.runsDay == day) script.runsToday else 0
         if (!manual && script.dailyLimit > 0 && runsToday >= script.dailyLimit) {
             return RunOutcome.Skipped("daily limit")
+        }
+
+        if (!manual) {
+            val last = lastRunByHost[UrlUtils.hostOf(script.url)] ?: 0L
+            val wait = MIN_GAP_MS - (System.currentTimeMillis() - last)
+            if (wait > 0) delay(wait.coerceAtMost(MIN_GAP_MS))
+            delay(Random.nextLong(0L, JITTER_MAX_MS))
         }
 
         if (!Network.isOnline(app)) {
@@ -166,7 +187,7 @@ object ScriptEngine {
     ): RunOutcome {
         val stored = e.kind.name + "|" + (e.message ?: "")
         val needsAttention = e.kind == ErrorKind.SELECTOR_MISSING || e.kind == ErrorKind.SESSION_EXPIRED ||
-            e.kind == ErrorKind.EMPTY || e.kind == ErrorKind.DOMAIN
+            e.kind == ErrorKind.EMPTY || e.kind == ErrorKind.DOMAIN || e.kind == ErrorKind.BLOCKED
         val now = System.currentTimeMillis()
         db.runs().insert(
             RunEntity(
@@ -181,7 +202,13 @@ object ScriptEngine {
             if (needsAttention) Status.NEEDS_ATTENTION.name else Status.ERROR.name,
             errorText(app, stored), counted, day
         )
-        val mustNotify = e.kind == ErrorKind.SELECTOR_MISSING || e.kind == ErrorKind.SESSION_EXPIRED
+        if (e.kind == ErrorKind.BLOCKED) {
+            // Do not keep hitting a site that refused us: pause until the user re-enables it.
+            db.scripts().setEnabled(script.id, false)
+            Scheduler.cancel(app, script.id)
+        }
+        val mustNotify = e.kind == ErrorKind.SELECTOR_MISSING || e.kind == ErrorKind.SESSION_EXPIRED ||
+            e.kind == ErrorKind.BLOCKED
         if (notify && e.kind != ErrorKind.NO_INTERNET && (mustNotify || script.notifyOnFailure)) {
             Notifier.post(
                 app, script.id,

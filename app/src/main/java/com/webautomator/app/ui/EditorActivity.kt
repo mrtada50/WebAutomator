@@ -1,22 +1,29 @@
 package com.webautomator.app.ui
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
+import android.text.TextUtils
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.lifecycle.lifecycleScope
-import android.widget.HorizontalScrollView
-import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.webautomator.app.AppScope
 import com.webautomator.app.MainActivity
 import com.webautomator.app.R
@@ -25,13 +32,16 @@ import com.webautomator.app.data.ActionJson
 import com.webautomator.app.data.ActionType
 import com.webautomator.app.data.AppDatabase
 import com.webautomator.app.data.ScriptEntity
+import com.webautomator.app.data.Status
+import com.webautomator.app.engine.ScriptEngine
 import com.webautomator.app.util.UrlResult
 import com.webautomator.app.util.UrlUtils
-import com.webautomator.app.engine.ScriptEngine
 import com.webautomator.app.work.Scheduler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-/** Edit the action list of one saved script: add, edit, duplicate, delete and reorder. */
+/** The steps of one saved automation: tap to edit, hold to drag, menu for everything else. */
 class EditorActivity : AppCompatActivity() {
 
     private var scriptId = 0L
@@ -48,45 +58,62 @@ class EditorActivity : AppCompatActivity() {
         db = AppDatabase.get(this)
         scriptId = intent.getLongExtra(EXTRA_ID, 0L)
 
-        val root = vbox(12)
+        val frame = FrameLayout(this)
+        val root = vbox(0)
+        root.setPadding(dp(16), dp(8), dp(16), 0)
+
+        val header = hbox()
+        header.addWrap(iconBtn(R.drawable.ic_back, R.string.back, R.string.h_back) { finish() })
         titleView = tv("", 20f, true)
-        titleView.setOnClickListener { rename() }
+        titleView.maxLines = 1
+        titleView.ellipsize = TextUtils.TruncateAt.END
+        titleView.setOnClickListener { editInfo() }
         titleView.help(R.string.h_rename)
-        urlView = tv("", 12f)
-        root.add(titleView)
-        root.add(urlView)
+        header.add(titleView, 0, WRAP, 1f, start = 4)
+        val more = iconBtn(R.drawable.ic_more, R.string.more, R.string.h_more) {}
+        more.setOnClickListener { v -> showScriptMenu(v) }
+        header.addWrap(more)
+        root.add(header)
 
-        val bar = hbox()
-        bar.add(btn(R.string.add_action, R.string.h_add_action) { showActionDialog(null) { a -> actions.add(a); persist() } },
-            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        bar.add(btn(R.string.schedule, R.string.h_schedule) {
-            startActivity(Intent(this, SchedulerActivity::class.java).putExtra(EXTRA_ID, scriptId))
-        }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
-        root.add(bar, top = 8)
+        urlView = caption("", 12f)
+        urlView.maxLines = 1
+        urlView.ellipsize = TextUtils.TruncateAt.MIDDLE
+        root.add(urlView, start = 52)
 
-        val bar2 = hbox()
-        bar2.add(btn(R.string.run_now, R.string.h_run_now) {
-            Toast.makeText(this, R.string.run_started, Toast.LENGTH_SHORT).show()
-            AppScope.launch { ScriptEngine.run(applicationContext, scriptId, true) }
-        }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        bar2.add(btn(R.string.delete_script, R.string.h_delete) { confirmDelete() }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
-        root.add(bar2, top = 4)
+        val row1 = hbox()
+        row1.add(
+            filledBtn(getString(R.string.run_now), R.drawable.ic_play, R.string.h_run_now) {
+                Toast.makeText(this, R.string.run_started, Toast.LENGTH_SHORT).show()
+                AppScope.launch { ScriptEngine.run(applicationContext, scriptId, true) }
+            },
+            0, WRAP, 1f
+        )
+        row1.add(
+            tonalBtn(getString(R.string.schedule), R.drawable.ic_clock, R.string.h_schedule) {
+                startActivity(Intent(this, SchedulerActivity::class.java).putExtra(EXTRA_ID, scriptId))
+            },
+            0, WRAP, 1f, start = 8
+        )
+        root.add(row1, top = 12)
+        root.add(
+            tonalBtn(getString(R.string.edit_script), R.drawable.ic_cursor, R.string.h_edit_script) { editOnPage(-1) },
+            top = 8
+        )
 
-        val bar3 = hbox()
-        bar3.add(btn(R.string.edit_script, R.string.h_edit_script) { editOnPage(-1) }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        bar3.add(btn(R.string.copy_script, R.string.h_copy_script) { copyScript() }, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f, start = 8)
-        root.add(bar3, top = 4)
-        root.add(btn(R.string.script_info, R.string.h_script_info) { editInfo() }, top = 4)
-        root.add(tv(getString(R.string.drag_hint), 12f), top = 8)
+        val titleRow = hbox()
+        titleRow.add(heading(getString(R.string.steps_title)), 0, WRAP, 1f)
+        root.add(titleRow, top = 16)
+        root.add(caption(getString(R.string.drag_hint), 12f), top = 2)
 
         rows = RowAdapter { c, box, a, i -> bindAction(c, box, a, i) }
         val list = RecyclerView(this)
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = rows
-        list.addItemDecoration(DividerItemDecoration(this, DividerItemDecoration.VERTICAL))
-        root.add(list, ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f, top = 8)
+        list.clipToPadding = false
+        list.setPadding(0, dp(8), 0, dp(96))
+        root.add(list, MATCH, 0, 1f)
 
-        // Long-press a step and drag it to a new position.
+        // Hold a step and drag it to a new position.
         val touch = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
             override fun onMove(
                 recyclerView: RecyclerView,
@@ -109,7 +136,17 @@ class EditorActivity : AppCompatActivity() {
             }
         })
         touch.attachToRecyclerView(list)
-        setContentView(root)
+
+        frame.addView(root, FrameLayout.LayoutParams(MATCH, MATCH))
+        val fab = ExtendedFloatingActionButton(this)
+        fab.text = getString(R.string.add_action)
+        fab.setIconResource(R.drawable.ic_add)
+        fab.setOnClickListener { showActionDialog(null) { a -> actions.add(a); persist() } }
+        fab.help(R.string.h_add_action)
+        val lp = FrameLayout.LayoutParams(WRAP, WRAP, Gravity.BOTTOM or Gravity.END)
+        lp.setMargins(dp(16), dp(16), dp(16), dp(16))
+        frame.addView(fab, lp)
+        setContentView(frame)
 
         lifecycleScope.launch {
             val s = db.scripts().get(scriptId)
@@ -134,37 +171,153 @@ class EditorActivity : AppCompatActivity() {
         AppScope.launch { db.scripts().updateActions(id, json) }
     }
 
-    private fun bindAction(c: android.content.Context, box: android.widget.LinearLayout, a: Action, i: Int) {
-        box.add(c.tv("${i + 1}. ${actionLabel(c, a.type)}", 15f, true))
-        val sum = a.summary()
-        if (sum.isNotBlank()) box.add(c.tv(sum, 12f))
-        val row = c.hbox()
-        row.add(c.smallBtn("▲", R.string.h_up) { move(i, -1) })
-        row.add(c.smallBtn("▼", R.string.h_down) { move(i, 1) })
-        row.add(c.smallBtn("⇅", R.string.h_moveto) { moveTo(i) })
-        if (a.selector.isNotBlank()) row.add(c.smallBtn("🎯", R.string.h_retarget) { editOnPage(i) })
-        row.add(c.smallBtn("＋", R.string.h_insert) {
-            showActionDialog(null) { n -> actions.add(i + 1, n); persist() }
-        })
-        row.add(c.smallBtn("✎", R.string.h_edit_action) { showActionDialog(a) { n -> actions[i] = n; persist() } })
-        row.add(c.smallBtn("⧉", R.string.h_dup) { actions.add(i + 1, a.copy()); persist() })
-        row.add(c.smallBtn("✕", R.string.h_remove) { actions.removeAt(i); persist() })
-        val scroll = HorizontalScrollView(c)
-        scroll.isHorizontalScrollBarEnabled = false
-        scroll.addView(row)
-        box.add(scroll)
+    // ---------- step card ----------
+
+    private fun bindAction(c: Context, box: LinearLayout, a: Action, i: Int) {
+        val card = c.cardWith(12) {
+            val row = c.hbox()
+            val num = c.pill((i + 1).toString(), R.color.brand, R.color.brand_container)
+            row.add(num, c.dp(28), c.dp(28))
+            row.addWrap(c.iconView(iconFor(a.type), R.color.brand, 22), start = 10)
+            val col = c.vbox(0)
+            col.add(c.tv(actionLabel(c, a.type), 15f, true))
+            val sum = a.summary()
+            if (sum.isNotBlank()) {
+                val s = c.caption(sum, 12f)
+                s.maxLines = 2
+                s.ellipsize = TextUtils.TruncateAt.END
+                col.add(s, top = 2)
+            }
+            row.add(col, 0, WRAP, 1f, start = 10)
+            val more = c.iconBtn(R.drawable.ic_more, R.string.more, R.string.h_stepmenu) {}
+            more.setOnClickListener { v -> showStepMenu(v, a, i) }
+            row.addWrap(more)
+            add(row)
+        }
+        card.isClickable = true
+        card.setOnClickListener { showActionDialog(a) { n -> actions[i] = n; persist() } }
+        box.add(card)
+    }
+
+    private fun showStepMenu(anchor: View, a: Action, i: Int) {
+        val pm = PopupMenu(this, anchor)
+        pm.menu.add(0, 1, 0, R.string.edit)
+        if (a.selector.isNotBlank()) pm.menu.add(0, 2, 1, R.string.pick_on_page)
+        pm.menu.add(0, 3, 2, R.string.insert_after)
+        pm.menu.add(0, 4, 3, R.string.move_to_prompt)
+        pm.menu.add(0, 5, 4, R.string.duplicate)
+        pm.menu.add(0, 6, 5, R.string.delete_step)
+        pm.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> showActionDialog(a) { n -> actions[i] = n; persist() }
+                2 -> editOnPage(i)
+                3 -> showActionDialog(null) { n -> actions.add(i + 1, n); persist() }
+                4 -> moveTo(i)
+                5 -> {
+                    actions.add(i + 1, a.copy())
+                    persist()
+                }
+                6 -> {
+                    actions.removeAt(i)
+                    persist()
+                }
+            }
+            true
+        }
+        pm.show()
+    }
+
+    private fun showScriptMenu(anchor: View) {
+        val pm = PopupMenu(this, anchor)
+        pm.menu.add(0, 1, 0, R.string.script_info)
+        pm.menu.add(0, 2, 1, R.string.copy_script)
+        pm.menu.add(0, 3, 2, R.string.delete_script)
+        pm.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> editInfo()
+                2 -> copyScript()
+                3 -> confirmDelete()
+            }
+            true
+        }
+        pm.show()
+    }
+
+    // ---------- dialogs ----------
+
+    /** Only the fields that matter for the chosen step type are shown. */
+    private fun showActionDialog(existing: Action?, onOk: (Action) -> Unit) {
+        val types = ActionType.values()
+        val spinner = Spinner(this)
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types.map { actionLabel(this, it) })
+        spinner.setSelection(if (existing != null) types.indexOf(existing.type) else 0)
+
+        val nameF = input(R.string.f_name, existing?.name ?: "")
+        val selF = input(R.string.f_selector, existing?.selector ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        val valF = input(R.string.f_value, existing?.value ?: "")
+        val attrF = input(R.string.f_attr, existing?.attr ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        val toF = input(R.string.f_timeout, ((existing?.timeoutMs ?: 15000L) / 1000).toString(), InputType.TYPE_CLASS_NUMBER)
+
+        fun refresh() {
+            val t = types[spinner.selectedItemPosition]
+            nameF.visibility = if (t.isExtraction()) View.VISIBLE else View.GONE
+            selF.visibility = if (needsSelector(t)) View.VISIBLE else View.GONE
+            valF.visibility = if (needsValue(t)) View.VISIBLE else View.GONE
+            valF.hint = getString(valueHint(t))
+            attrF.visibility = if (t == ActionType.EXTRACT_ATTR) View.VISIBLE else View.GONE
+            toF.visibility = if (usesTimeout(t)) View.VISIBLE else View.GONE
+        }
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = refresh()
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
+        val form = vbox(20)
+        form.add(caption(getString(R.string.step_type), 12f))
+        form.add(spinner)
+        form.add(nameF, top = 8)
+        form.add(selF, top = 8)
+        form.add(valF, top = 8)
+        form.add(attrF, top = 8)
+        form.add(toF, top = 8)
+        refresh()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(if (existing == null) R.string.add_action else R.string.edit)
+            .setView(ScrollView(this).apply { addView(form) })
+            .setPositiveButton(R.string.ok) { _, _ ->
+                val t = types[spinner.selectedItemPosition]
+                val selector = selF.str()
+                if (needsSelector(t) && selector.isBlank()) {
+                    Toast.makeText(this, R.string.need_selector, Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val sec = toF.str().toLongOrNull()?.coerceIn(1L, 60L) ?: 15L
+                onOk(
+                    Action(
+                        type = t,
+                        selector = if (needsSelector(t)) selector else "",
+                        value = if (needsValue(t)) valF.str() else "",
+                        attr = if (t == ActionType.EXTRACT_ATTR) attrF.str() else "",
+                        name = if (t.isExtraction()) nameF.str() else "",
+                        timeoutMs = sec * 1000
+                    )
+                )
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun moveTo(i: Int) {
-        val f = field(R.string.move_to_prompt, (i + 1).toString(), InputType.TYPE_CLASS_NUMBER)
+        val f = input(R.string.move_to_prompt, (i + 1).toString(), InputType.TYPE_CLASS_NUMBER)
         val form = vbox(20)
-        form.add(tv(getString(R.string.move_to_range, actions.size), 13f))
-        form.add(f)
-        AlertDialog.Builder(this)
+        form.add(caption(getString(R.string.move_to_range, actions.size), 13f))
+        form.add(f, top = 8)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.move_to_prompt)
             .setView(form)
             .setPositiveButton(R.string.ok) { _, _ ->
-                val n = f.text.toString().toIntOrNull()
+                val n = f.str().toIntOrNull()
                 if (n == null || n < 1 || n > actions.size) {
                     Toast.makeText(this, R.string.position_invalid, Toast.LENGTH_SHORT).show()
                 } else {
@@ -176,37 +329,25 @@ class EditorActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Re-opens the real page in the browser so the user taps the element to change. */
-    private fun editOnPage(index: Int) {
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                .putExtra(MainActivity.EXTRA_EDIT_ID, scriptId)
-                .putExtra(MainActivity.EXTRA_EDIT_INDEX, index)
-        )
-        finish()
-    }
-
     private fun editInfo() {
         val s = script ?: return
-        val nameF = field(R.string.script_name, s.name)
-        val urlF = field(R.string.url_hint, s.url, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
+        val nameF = input(R.string.script_name, s.name)
+        val urlF = input(R.string.url_hint, s.url, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
         val form = vbox(20)
         form.add(nameF)
-        form.add(urlF)
-        AlertDialog.Builder(this)
+        form.add(urlF, top = 8)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.script_info)
             .setView(form)
             .setPositiveButton(R.string.ok) { _, _ ->
-                val newName = nameF.text.toString().trim().ifEmpty { s.name }
-                val valid = UrlUtils.normalize(urlF.text.toString())
+                val newName = nameF.str().ifEmpty { s.name }
+                val valid = UrlUtils.normalize(urlF.str())
                 if (valid !is UrlResult.Valid) {
                     Toast.makeText(this, R.string.invalid_url, Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 val newUrl = valid.url
                 val id = scriptId
-                // keep the first "open URL" step in sync when it pointed to the old address
                 val first = actions.firstOrNull()
                 if (first != null && first.type == ActionType.OPEN_URL && first.value == s.url) {
                     actions[0] = first.copy(value = newUrl)
@@ -225,96 +366,10 @@ class EditorActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun copyScript() {
-        val suffix = getString(R.string.copy_suffix)
-        val done = getString(R.string.script_copied)
-        val id = scriptId
-        val ctx = this
-        AppScope.launch {
-            val s = db.scripts().get(id) ?: return@launch
-            db.scripts().insert(
-                s.copy(
-                    id = 0, name = s.name + " " + suffix, enabled = false, lastRunAt = 0L,
-                    status = com.webautomator.app.data.Status.IDLE.name, lastMessage = "", runsToday = 0, runsDay = ""
-                )
-            )
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                Toast.makeText(ctx, done, Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun move(i: Int, delta: Int) {
-        val j = i + delta
-        if (j < 0 || j >= actions.size) return
-        val a = actions.removeAt(i)
-        actions.add(j, a)
-        persist()
-    }
-
-    private fun showActionDialog(existing: Action?, onOk: (Action) -> Unit) {
-        val types = ActionType.values()
-        val spinner = Spinner(this)
-        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types.map { actionLabel(this, it) })
-        spinner.setSelection(if (existing != null) types.indexOf(existing.type) else 0)
-        val name = field(R.string.f_name, existing?.name ?: "")
-        val selector = field(R.string.f_selector, existing?.selector ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
-        val value = field(R.string.f_value, existing?.value ?: "")
-        val attr = field(R.string.f_attr, existing?.attr ?: "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
-        val timeout = field(R.string.f_timeout, ((existing?.timeoutMs ?: 15000L) / 1000).toString(), InputType.TYPE_CLASS_NUMBER)
-
-        val form = vbox(20)
-        form.add(spinner)
-        form.add(name)
-        form.add(selector)
-        form.add(value)
-        form.add(attr)
-        form.add(timeout)
-
-        AlertDialog.Builder(this)
-            .setTitle(if (existing == null) R.string.add_action else R.string.edit)
-            .setView(ScrollView(this).apply { addView(form) })
-            .setPositiveButton(R.string.ok) { _, _ ->
-                val sec = timeout.text.toString().toLongOrNull()?.coerceIn(1L, 60L) ?: 15L
-                onOk(
-                    Action(
-                        type = types[spinner.selectedItemPosition],
-                        selector = selector.text.toString().trim(),
-                        value = value.text.toString().trim(),
-                        attr = attr.text.toString().trim(),
-                        name = name.text.toString().trim(),
-                        timeoutMs = sec * 1000
-                    )
-                )
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
-    private fun rename() {
-        val f = field(R.string.script_name, scriptName)
-        val form = vbox(20)
-        form.add(f)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.rename)
-            .setView(form)
-            .setPositiveButton(R.string.ok) { _, _ ->
-                val n = f.text.toString().trim()
-                if (n.isNotEmpty()) {
-                    scriptName = n
-                    titleView.text = n
-                    val id = scriptId
-                    AppScope.launch { db.scripts().rename(id, n) }
-                }
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
     private fun confirmDelete() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.delete_confirm)
-            .setPositiveButton(R.string.ok) { _, _ ->
+            .setPositiveButton(R.string.delete_script) { _, _ ->
                 val id = scriptId
                 val app = applicationContext
                 AppScope.launch {
@@ -326,6 +381,34 @@ class EditorActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
+    }
+
+    private fun copyScript() {
+        val suffix = getString(R.string.copy_suffix)
+        val done = getString(R.string.script_copied)
+        val id = scriptId
+        val ctx = this
+        AppScope.launch {
+            val s = db.scripts().get(id) ?: return@launch
+            db.scripts().insert(
+                s.copy(
+                    id = 0, name = s.name + " " + suffix, enabled = false, lastRunAt = 0L,
+                    status = Status.IDLE.name, lastMessage = "", runsToday = 0, runsDay = ""
+                )
+            )
+            withContext(Dispatchers.Main) { Toast.makeText(ctx, done, Toast.LENGTH_SHORT).show() }
+        }
+    }
+
+    /** Re-opens the real page in the browser so the user taps the element to change. */
+    private fun editOnPage(index: Int) {
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(MainActivity.EXTRA_EDIT_ID, scriptId)
+                .putExtra(MainActivity.EXTRA_EDIT_INDEX, index)
+        )
+        finish()
     }
 
     companion object {

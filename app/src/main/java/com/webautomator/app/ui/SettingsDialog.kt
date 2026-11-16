@@ -2,7 +2,7 @@ package com.webautomator.app.ui
 
 import android.widget.ArrayAdapter
 import android.widget.Spinner
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.webautomator.app.R
@@ -22,10 +22,10 @@ object SettingsDialog {
         langSpinner.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, langs)
 
         val form = activity.vbox(20)
-        form.add(activity.tv(activity.getString(R.string.theme), 14f, true))
-        form.add(themeSpinner)
-        form.add(activity.tv(activity.getString(R.string.language), 14f, true), top = 12)
-        form.add(langSpinner)
+        form.add(activity.caption(activity.getString(R.string.theme), 12f))
+        form.add(themeSpinner, top = 4)
+        form.add(activity.caption(activity.getString(R.string.language), 12f), top = 16)
+        form.add(langSpinner, top = 4)
 
         activity.lifecycleScope.launch {
             val (t, l) = AppSettings.load(activity)
@@ -33,7 +33,7 @@ object SettingsDialog {
             langSpinner.setSelection(langCodes.indexOf(l).coerceAtLeast(0))
         }
 
-        AlertDialog.Builder(activity)
+        MaterialAlertDialogBuilder(activity)
             .setTitle(R.string.settings)
             .setView(form)
             .setPositiveButton(R.string.ok) { _, _ ->

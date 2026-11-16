@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.webautomator.app.data.Action
@@ -25,7 +26,7 @@ import org.json.JSONObject
 
 enum class ErrorKind {
     INVALID_URL, NETWORK, TIMEOUT, SELECTOR_MISSING, SESSION_EXPIRED,
-    JS_ERROR, EMPTY, NO_INTERNET, DOMAIN
+    JS_ERROR, EMPTY, NO_INTERNET, DOMAIN, BLOCKED
 }
 
 class ScriptException(val kind: ErrorKind, message: String) : Exception(message)
@@ -46,6 +47,7 @@ class WebRunner(context: Context) {
     private var waiter: CompletableDeferred<Unit>? = null
     private val allowedHosts = mutableSetOf<String>()
     private var startUrl = ""
+    @Volatile private var mainStatus = 0
 
     suspend fun run(actions: List<Action>, startUrl: String, hooks: RunHooks): Map<String, String> =
         withContext(Dispatchers.Main) {
@@ -91,6 +93,10 @@ class WebRunner(context: Context) {
 
             override fun onPageFinished(v: WebView, url: String?) {
                 waiter?.complete(Unit)
+            }
+
+            override fun onReceivedHttpError(v: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
+                if (request.isForMainFrame) mainStatus = errorResponse.statusCode
             }
 
             override fun onReceivedError(v: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -238,6 +244,7 @@ class WebRunner(context: Context) {
         allow(valid.url)
         val w = CompletableDeferred<Unit>()
         waiter = w
+        mainStatus = 0
         val wv = view ?: throw ScriptException(ErrorKind.JS_ERROR, "no webview")
         wv.loadUrl(valid.url)
         val done = withTimeoutOrNull(timeoutMs) { w.await() }
@@ -245,7 +252,11 @@ class WebRunner(context: Context) {
             wv.stopLoading()
             throw ScriptException(ErrorKind.TIMEOUT, "page load: ${valid.url}")
         }
+        if (BlockDetector.isBlockStatus(mainStatus)) {
+            throw ScriptException(ErrorKind.BLOCKED, "HTTP $mainStatus")
+        }
         waitReady(timeoutMs)
+        checkBlocked()
     }
 
     private suspend fun waitReady(timeoutMs: Long) {
@@ -257,11 +268,23 @@ class WebRunner(context: Context) {
         if (!ok && state != "interactive") throw ScriptException(ErrorKind.TIMEOUT, "page not ready")
     }
 
+    /** Stops (never works around) pages that ask for human verification or refuse access. */
+    private suspend fun checkBlocked() {
+        val o = evalJsonOrNull(
+            "({title:document.title||'',text:((document.body&&document.body.innerText)||'').slice(0,1500)," +
+                "challenge:!!document.querySelector('#challenge-form,iframe[src*=\"challenges.cloudflare.com\"]')})"
+        ) ?: return
+        if (o.optBoolean("challenge") || BlockDetector.isBlockText(o.optString("title") + " " + o.optString("text"))) {
+            throw ScriptException(ErrorKind.BLOCKED, "human verification or access blocked")
+        }
+    }
+
     private suspend fun settle() {
         try {
             waitReady(8_000)
+            checkBlocked()
         } catch (e: ScriptException) {
-            if (e.kind == ErrorKind.DOMAIN) throw e
+            if (e.kind == ErrorKind.DOMAIN || e.kind == ErrorKind.BLOCKED) throw e
         }
     }
 

@@ -2,9 +2,12 @@ package com.webautomator.app.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.text.InputType
+import android.text.TextUtils
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,17 +20,18 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
-import android.widget.LinearLayout
+import android.widget.ImageButton
 import android.widget.ProgressBar
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.webautomator.app.AppScope
 import com.webautomator.app.R
 import com.webautomator.app.data.Action
@@ -47,7 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/** Integrated browser with visual element selection; builds a draft automation. */
+/** Integrated browser: open a site, tap what you want to track, save it as an automation. */
 class CreateFragment : Fragment() {
 
     private data class Sel(
@@ -64,12 +68,19 @@ class CreateFragment : Fragment() {
     private var webView: WebView? = null
     private lateinit var urlInput: EditText
     private lateinit var progress: ProgressBar
-    private lateinit var backBtn: MaterialButton
-    private lateinit var forwardBtn: MaterialButton
+    private lateinit var backBtn: ImageButton
+    private lateinit var forwardBtn: ImageButton
     private lateinit var selectBtn: MaterialButton
-    private lateinit var actionsBtn: MaterialButton
-    private lateinit var panel: LinearLayout
+    private lateinit var stepsBtn: MaterialButton
+    private lateinit var panel: MaterialCardView
+    private lateinit var tagPill: TextView
     private lateinit var preview: TextView
+    private lateinit var selectorText: TextView
+    private lateinit var chipsScroll: HorizontalScrollView
+    private lateinit var applyBtn: MaterialButton
+    private lateinit var emptyHint: View
+    private lateinit var editBanner: MaterialCardView
+    private lateinit var editTitle: TextView
 
     private var selecting = false
     private var current: Sel? = null
@@ -85,10 +96,6 @@ class CreateFragment : Fragment() {
     private var editIndex = -1
     private var pendingId = 0L
     private var pendingIdx = -1
-    private lateinit var editBar: LinearLayout
-    private lateinit var editTitle: TextView
-    private lateinit var applyBtn: MaterialButton
-    private lateinit var btnScroll: HorizontalScrollView
 
     private val selectorJs: String by lazy {
         requireContext().assets.open("selector.js").bufferedReader().use { it.readText() }
@@ -105,53 +112,49 @@ class CreateFragment : Fragment() {
         val c = requireContext()
         val root = c.vbox(0)
 
-        // Edit-mode bar (shown only while re-picking elements of a saved script)
-        editBar = c.vbox(8)
-        editBar.visibility = View.GONE
+        // ---- edit banner (only while re-picking elements of a saved automation) ----
         editTitle = c.tv("", 13f, true)
-        editBar.add(editTitle)
-        val editRow = c.hbox()
-        editRow.add(c.smallBtn(getString(R.string.edit_pick_step), R.string.h_edit_pick) { chooseStep() })
-        editRow.add(c.smallBtn(getString(R.string.edit_done), R.string.h_edit_done) { finishEdit(true) })
-        editBar.add(editRow)
-        root.add(editBar)
+        editTitle.setTextColor(c.color(R.color.on_brand_container))
+        editBanner = c.cardWith(12, R.color.brand_container, false) {
+            add(editTitle)
+            val r = c.hbox()
+            r.addWrap(c.textBtn(c.getString(R.string.edit_pick_step), 0, R.string.h_edit_pick) { chooseStep() })
+            r.addWrap(c.textBtn(c.getString(R.string.edit_done), 0, R.string.h_edit_done) { finishEdit(true) }, start = 8)
+            add(r, top = 4)
+        }
+        editBanner.visibility = View.GONE
+        root.add(editBanner, top = 8, start = 12, end = 12)
 
-        // URL row
-        val urlRow = c.hbox()
-        urlRow.setPadding(c.dp(8), c.dp(8), c.dp(8), 0)
-        urlInput = c.field(R.string.url_hint, "", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        urlInput.imeOptions = EditorInfo.IME_ACTION_GO
+        // ---- address bar ----
+        urlInput = EditText(c)
+        urlInput.hint = getString(R.string.url_hint)
+        urlInput.background = null
         urlInput.setSingleLine(true)
-        urlRow.add(urlInput, 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-        urlRow.add(c.btn(R.string.open, R.string.h_open) { openFromInput() }, ViewGroup.LayoutParams.WRAP_CONTENT, start = 8)
-        root.add(urlRow)
-
-        // Controls row
-        val ctl = c.hbox()
-        ctl.setPadding(c.dp(4), 0, c.dp(4), 0)
-        backBtn = c.smallBtn("‹", R.string.h_back) { webView?.goBack() }
-        forwardBtn = c.smallBtn("›", R.string.h_forward) { webView?.goForward() }
-        val refresh = c.smallBtn("↻", R.string.h_refresh) { webView?.reload() }
-        selectBtn = c.smallBtn(getString(R.string.select_off), R.string.h_select) { toggleSelect() }
-        actionsBtn = c.smallBtn("", R.string.h_actions) { showDraft() }
-        val saveBtn = c.smallBtn(getString(R.string.save_automation), R.string.h_save_auto) { save() }
-        ctl.add(backBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
-        ctl.add(forwardBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
-        ctl.add(refresh, ViewGroup.LayoutParams.WRAP_CONTENT)
-        ctl.add(selectBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
-        ctl.add(actionsBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
-        ctl.add(saveBtn, ViewGroup.LayoutParams.WRAP_CONTENT)
-        val ctlScroll = HorizontalScrollView(c)
-        ctlScroll.isHorizontalScrollBarEnabled = false
-        ctlScroll.addView(ctl)
-        root.add(ctlScroll)
+        urlInput.textSize = 14f
+        urlInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+        urlInput.imeOptions = EditorInfo.IME_ACTION_GO
+        urlInput.setTextColor(c.themeColor(com.google.android.material.R.attr.colorOnSurface))
+        backBtn = c.iconBtn(R.drawable.ic_back, R.string.back, R.string.h_back) { webView?.goBack() }
+        forwardBtn = c.iconBtn(R.drawable.ic_forward, R.string.forward, R.string.h_forward) { webView?.goForward() }
+        val addr = c.cardWith(0) {
+            val r = c.hbox()
+            r.setPadding(c.dp(4), 0, c.dp(4), 0)
+            r.addWrap(backBtn)
+            r.addWrap(forwardBtn)
+            r.add(urlInput, 0, WRAP, 1f, start = 4)
+            r.addWrap(c.textBtn(c.getString(R.string.open), 0, R.string.h_open) { openFromInput() })
+            add(r)
+        }
+        root.add(addr, top = 8, start = 12, end = 12)
 
         progress = ProgressBar(c, null, android.R.attr.progressBarStyleHorizontal)
         progress.max = 100
         progress.visibility = View.GONE
-        root.add(progress, h = c.dp(3))
+        progress.progressTintList = ColorStateList.valueOf(c.themeColor(com.google.android.material.R.attr.colorPrimary))
+        root.add(progress, MATCH, c.dp(3), top = 6)
 
-        // Browser
+        // ---- browser ----
+        val frame = FrameLayout(c)
         val wv = WebView(c)
         webView = wv
         wv.settings.apply {
@@ -174,10 +177,11 @@ class CreateFragment : Fragment() {
             }
 
             override fun onPageStarted(v: WebView, url: String?, favicon: Bitmap?) {
+                emptyHint.visibility = View.GONE
                 progress.visibility = View.VISIBLE
                 if (!urlInput.hasFocus() && url != null) urlInput.setText(url)
                 current = null
-                panel.visibility = View.GONE
+                renderPanel()
             }
 
             override fun onPageFinished(v: WebView, url: String?) {
@@ -201,30 +205,57 @@ class CreateFragment : Fragment() {
                 progress.progress = newProgress
             }
         }
-        root.add(wv, ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        frame.addView(wv, FrameLayout.LayoutParams(MATCH, MATCH))
+        emptyHint = c.emptyState(R.drawable.ic_link, R.string.create_empty_title, R.string.create_empty_body)
+        emptyHint.setBackgroundColor(c.color(R.color.bg))
+        frame.addView(emptyHint, FrameLayout.LayoutParams(MATCH, MATCH))
+        root.add(frame, MATCH, 0, 1f, top = 6)
 
-        // Selection panel
-        panel = c.vbox(8)
+        // ---- selection panel ----
+        tagPill = c.pill("", R.color.brand, R.color.brand_container)
+        preview = c.tv("", 14f)
+        preview.maxLines = 2
+        preview.ellipsize = TextUtils.TruncateAt.END
+        selectorText = c.caption("", 11f)
+        selectorText.maxLines = 1
+        selectorText.ellipsize = TextUtils.TruncateAt.MIDDLE
+        chipsScroll = HorizontalScrollView(c)
+        chipsScroll.isHorizontalScrollBarEnabled = false
+        applyBtn = c.filledBtn(c.getString(R.string.apply_here), R.drawable.ic_check, R.string.h_apply) { applyEdit() }
+        panel = c.cardWith(12) {
+            val head = c.hbox()
+            head.addWrap(tagPill)
+            head.add(preview, 0, WRAP, 1f, start = 8)
+            head.addWrap(c.iconBtn(R.drawable.ic_close, R.string.close, 0) { clearSelection() })
+            add(head)
+            add(selectorText, top = 2)
+
+            val chips = c.hbox()
+            chips.addWrap(c.chip(c.getString(R.string.a_text), R.drawable.ic_text).also { it.setOnClickListener { pick(ActionType.EXTRACT_TEXT) }; it.help(R.string.h_a_text) })
+            chips.addWrap(c.chip(c.getString(R.string.a_number), R.drawable.ic_number).also { it.setOnClickListener { pick(ActionType.EXTRACT_NUMBER) }; it.help(R.string.h_a_number) }, start = 8)
+            chips.addWrap(c.chip(c.getString(R.string.a_attr), R.drawable.ic_link).also { it.setOnClickListener { pick(ActionType.EXTRACT_ATTR) }; it.help(R.string.h_a_attr) }, start = 8)
+            chips.addWrap(c.chip(c.getString(R.string.a_table), R.drawable.ic_table).also { it.setOnClickListener { pick(ActionType.EXTRACT_TABLE) }; it.help(R.string.h_a_table) }, start = 8)
+            chips.addWrap(c.chip(c.getString(R.string.a_list), R.drawable.ic_list).also { it.setOnClickListener { pick(ActionType.EXTRACT_LIST) }; it.help(R.string.h_a_list) }, start = 8)
+            chips.addWrap(c.chip(c.getString(R.string.a_click), R.drawable.ic_cursor).also { it.setOnClickListener { pick(ActionType.CLICK) }; it.help(R.string.h_a_click) }, start = 8)
+            chips.addWrap(c.chip(c.getString(R.string.a_wait), R.drawable.ic_hourglass).also { it.setOnClickListener { pick(ActionType.WAIT_ELEMENT) }; it.help(R.string.h_a_wait) }, start = 8)
+            chipsScroll.addView(chips)
+            add(chipsScroll, top = 8)
+            add(applyBtn, top = 8)
+        }
         panel.visibility = View.GONE
-        preview = c.tv("", 12f)
-        preview.maxLines = 5
-        panel.add(preview)
-        val btns = c.hbox()
-        btns.add(c.smallBtn(getString(R.string.a_text), R.string.h_a_text) { pick(ActionType.EXTRACT_TEXT) })
-        btns.add(c.smallBtn(getString(R.string.a_number), R.string.h_a_number) { pick(ActionType.EXTRACT_NUMBER) })
-        btns.add(c.smallBtn(getString(R.string.a_attr), R.string.h_a_attr) { pick(ActionType.EXTRACT_ATTR) })
-        btns.add(c.smallBtn(getString(R.string.a_table), R.string.h_a_table) { pick(ActionType.EXTRACT_TABLE) })
-        btns.add(c.smallBtn(getString(R.string.a_list), R.string.h_a_list) { pick(ActionType.EXTRACT_LIST) })
-        btns.add(c.smallBtn(getString(R.string.a_click), R.string.h_a_click) { pick(ActionType.CLICK) })
-        btns.add(c.smallBtn(getString(R.string.a_wait), R.string.h_a_wait) { pick(ActionType.WAIT_ELEMENT) })
-        btnScroll = HorizontalScrollView(c)
-        btnScroll.isHorizontalScrollBarEnabled = false
-        btnScroll.addView(btns)
-        panel.add(btnScroll)
-        applyBtn = c.btn(R.string.apply_here, R.string.h_apply) { applyEdit() }
-        applyBtn.visibility = View.GONE
-        panel.add(applyBtn)
-        root.add(panel)
+        root.add(panel, top = 6, start = 12, end = 12)
+
+        // ---- bottom bar ----
+        selectBtn = c.tonalBtn(getString(R.string.select_off), R.drawable.ic_cursor, R.string.h_select) { toggleSelect() }.compact()
+        stepsBtn = c.tonalBtn("", R.drawable.ic_list, R.string.h_actions) { showDraft() }.compact()
+        val saveBtn = c.filledBtn(getString(R.string.save), R.drawable.ic_check, R.string.h_save_auto) { save() }.compact()
+        val bar = c.hbox()
+        bar.setPadding(c.dp(12), c.dp(8), c.dp(12), c.dp(8))
+        bar.setBackgroundColor(c.color(R.color.card))
+        bar.add(selectBtn, 0, WRAP, 1f)
+        bar.add(stepsBtn, 0, WRAP, 1f, start = 8)
+        bar.add(saveBtn, 0, WRAP, 1f, start = 8)
+        root.add(bar, top = 6)
 
         urlInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO) {
@@ -237,6 +268,7 @@ class CreateFragment : Fragment() {
         savedInstanceState?.getBundle(STATE_WEB)?.let { wv.restoreState(it) }
         updateNav()
         updateCount()
+        renderPanel()
         return root
     }
 
@@ -261,35 +293,69 @@ class CreateFragment : Fragment() {
         val wv = webView ?: return
         backBtn.isEnabled = wv.canGoBack()
         forwardBtn.isEnabled = wv.canGoForward()
-        backBtn.alpha = if (wv.canGoBack()) 1f else 0.4f
-        forwardBtn.alpha = if (wv.canGoForward()) 1f else 0.4f
+        backBtn.alpha = if (wv.canGoBack()) 1f else 0.35f
+        forwardBtn.alpha = if (wv.canGoForward()) 1f else 0.35f
         backCallback.isEnabled = !isHidden && wv.canGoBack()
     }
 
     private fun updateCount() {
-        actionsBtn.text = getString(R.string.actions_count, draft.size)
+        stepsBtn.text = getString(R.string.steps_count, draft.size)
+    }
+
+    private fun styleSelect() {
+        selectBtn.text = getString(if (selecting) R.string.select_on else R.string.select_off)
+        if (selecting) selectBtn.filledStyle() else selectBtn.tonalStyle()
+    }
+
+    /** Shows the panel while selecting: a hint first, then the chosen element with its actions. */
+    private fun renderPanel() {
+        panel.visibility = if (selecting) View.VISIBLE else View.GONE
+        val sel = current
+        if (sel == null) {
+            tagPill.visibility = View.GONE
+            preview.text = getString(R.string.sel_hint_short)
+            selectorText.visibility = View.GONE
+            chipsScroll.visibility = View.GONE
+            applyBtn.visibility = View.GONE
+        } else {
+            tagPill.visibility = View.VISIBLE
+            tagPill.text = "<${sel.tag}>"
+            preview.text = sel.text.ifBlank { getString(R.string.no_text) }
+            selectorText.text = sel.selector
+            selectorText.visibility = View.VISIBLE
+            chipsScroll.visibility = if (editMode) View.GONE else View.VISIBLE
+            applyBtn.visibility = if (editMode) View.VISIBLE else View.GONE
+        }
     }
 
     // ---- visual selection ----
 
     private fun toggleSelect() {
-        selecting = !selecting
-        selectBtn.text = getString(if (selecting) R.string.select_on else R.string.select_off)
         val wv = webView ?: return
-        if (selecting) {
+        if (!selecting) {
             if (wv.url.isNullOrBlank()) {
                 Toast.makeText(requireContext(), R.string.open_first, Toast.LENGTH_SHORT).show()
-                selecting = false
-                selectBtn.text = getString(R.string.select_off)
                 return
             }
-            Toast.makeText(requireContext(), R.string.sel_hint, Toast.LENGTH_LONG).show()
+            selecting = true
+            styleSelect()
+            renderPanel()
             injectAndEnable()
             startPolling()
         } else {
+            selecting = false
+            current = null
+            styleSelect()
+            renderPanel()
             pollJob?.cancel()
             wv.evaluateJavascript("window.__wa&&window.__wa.disable();", null)
         }
+    }
+
+    private fun clearSelection() {
+        current = null
+        webView?.evaluateJavascript("window.__wa&&window.__wa.clear();", null)
+        renderPanel()
     }
 
     private fun injectAndEnable() {
@@ -310,9 +376,7 @@ class CreateFragment : Fragment() {
                     val sel = parseSel(raw)
                     if (sel != null && sel.selector != current?.selector) {
                         current = sel
-                        preview.text = "<${sel.tag}>  ${sel.selector}\n${sel.text}"
-                        applyModeUi()
-                        panel.visibility = View.VISIBLE
+                        renderPanel()
                     }
                 }
                 delay(400)
@@ -326,8 +390,8 @@ class CreateFragment : Fragment() {
             val attrsObj = o.optJSONObject("attrs")
             val names = ArrayList<String>()
             if (attrsObj != null) {
-                val it = attrsObj.keys()
-                while (it.hasNext()) names.add(it.next())
+                val keys = attrsObj.keys()
+                while (keys.hasNext()) names.add(keys.next())
             }
             if (o.optString("href").isNotEmpty() && !names.contains("href")) names.add("href")
             if (o.optString("src").isNotEmpty() && !names.contains("src")) names.add("src")
@@ -370,17 +434,17 @@ class CreateFragment : Fragment() {
 
     private fun askName(withAttr: Boolean, defaultAttr: String, onOk: (String, String) -> Unit) {
         val c = requireContext()
-        val name = c.field(R.string.f_name, "value${draft.count { it.type.isExtraction() } + 1}")
-        val attr = c.field(R.string.f_attr, defaultAttr)
+        val name = c.input(R.string.f_name, "value${draft.count { it.type.isExtraction() } + 1}")
+        val attr = c.input(R.string.f_attr, defaultAttr)
         val form = c.vbox(20)
         form.add(name)
-        if (withAttr) form.add(attr)
-        AlertDialog.Builder(c)
+        if (withAttr) form.add(attr, top = 8)
+        MaterialAlertDialogBuilder(c)
             .setTitle(R.string.name_prompt)
             .setView(form)
             .setPositiveButton(R.string.ok) { _, _ ->
-                val n = name.text.toString().trim().ifEmpty { "value" }
-                val a = attr.text.toString().trim()
+                val n = name.str().ifEmpty { "value" }
+                val a = attr.str()
                 if (withAttr && a.isEmpty()) return@setPositiveButton
                 onOk(n, a)
             }
@@ -402,6 +466,7 @@ class CreateFragment : Fragment() {
         }
         draft.add(a)
         updateCount()
+        clearSelection()
         Toast.makeText(requireContext(), R.string.added_action, Toast.LENGTH_SHORT).show()
     }
 
@@ -409,11 +474,9 @@ class CreateFragment : Fragment() {
         val c = requireContext()
         val text = if (draft.isEmpty()) getString(R.string.draft_empty)
         else draft.mapIndexed { i, a -> "${i + 1}. ${actionLabel(c, a.type)}  ${a.summary()}" }.joinToString("\n")
-        val tvv = c.tv(text, 13f)
-        tvv.setPadding(c.dp(20), c.dp(12), c.dp(20), 0)
-        AlertDialog.Builder(c)
-            .setTitle(R.string.nav_create)
-            .setView(ScrollView(c).apply { addView(tvv) })
+        MaterialAlertDialogBuilder(c)
+            .setTitle(R.string.steps_title)
+            .setMessage(text)
             .setPositiveButton(R.string.close, null)
             .setNeutralButton(R.string.draft_remove_last) { _, _ ->
                 if (draft.isNotEmpty()) draft.removeAt(draft.size - 1)
@@ -426,7 +489,7 @@ class CreateFragment : Fragment() {
             .show()
     }
 
-    // ---- edit an existing script by picking elements on the real page ----
+    // ---- edit an existing automation by picking elements on the real page ----
 
     /** Called by MainActivity when the user chooses "Edit script" in the editor. */
     fun startEdit(id: Long, index: Int) {
@@ -447,15 +510,10 @@ class CreateFragment : Fragment() {
             editActions.addAll(try { ActionJson.decode(s.actionsJson) } catch (e: Exception) { emptyList() })
             editMode = true
             editTitle.text = getString(R.string.edit_mode_title, s.name)
-            editBar.visibility = View.VISIBLE
-            applyModeUi()
+            editBanner.visibility = View.VISIBLE
+            renderPanel()
             if (idx in editActions.indices && editActions[idx].selector.isNotBlank()) selectStep(idx) else chooseStep()
         }
-    }
-
-    private fun applyModeUi() {
-        btnScroll.visibility = if (editMode) View.GONE else View.VISIBLE
-        applyBtn.visibility = if (editMode) View.VISIBLE else View.GONE
     }
 
     private fun chooseStep() {
@@ -467,7 +525,7 @@ class CreateFragment : Fragment() {
         }
         val labels = idxs.map { "${it + 1}. ${actionLabel(c, editActions[it].type)}  ${editActions[it].summary()}" }
             .toTypedArray()
-        AlertDialog.Builder(c)
+        MaterialAlertDialogBuilder(c)
             .setTitle(R.string.edit_choose_title)
             .setItems(labels) { _, which -> selectStep(idxs[which]) }
             .setNegativeButton(R.string.cancel, null)
@@ -487,9 +545,9 @@ class CreateFragment : Fragment() {
         editTitle.text = getString(R.string.edit_mode_title, script.name) + "\n" +
             getString(R.string.edit_tap_hint, idx + 1)
         current = null
-        panel.visibility = View.GONE
         selecting = true
-        selectBtn.text = getString(R.string.select_on)
+        styleSelect()
+        renderPanel()
         startPolling()
         val valid = UrlUtils.normalize(page)
         if (valid is UrlResult.Valid) {
@@ -516,9 +574,7 @@ class CreateFragment : Fragment() {
         val json = ActionJson.encode(editActions)
         val db = AppDatabase.get(requireContext())
         AppScope.launch { db.scripts().updateActions(id, json) }
-        current = null
-        panel.visibility = View.GONE
-        webView?.evaluateJavascript("window.__wa&&window.__wa.clear();", null)
+        clearSelection()
         Toast.makeText(requireContext(), R.string.edit_applied, Toast.LENGTH_SHORT).show()
     }
 
@@ -526,13 +582,13 @@ class CreateFragment : Fragment() {
         val id = editScript?.id
         editMode = false
         editScript = null
-        editBar.visibility = View.GONE
-        applyModeUi()
+        editBanner.visibility = View.GONE
         selecting = false
-        selectBtn.text = getString(R.string.select_off)
+        current = null
+        styleSelect()
         pollJob?.cancel()
         webView?.evaluateJavascript("window.__wa&&window.__wa.disable();", null)
-        panel.visibility = View.GONE
+        renderPanel()
         if (openEditor && id != null) {
             startActivity(Intent(requireContext(), EditorActivity::class.java).putExtra(EditorActivity.EXTRA_ID, id))
         }
@@ -550,15 +606,15 @@ class CreateFragment : Fragment() {
             Toast.makeText(c, R.string.invalid_url, Toast.LENGTH_LONG).show()
             return
         }
-        val nameField = c.field(R.string.script_name, UrlUtils.hostOf(startUrl))
+        val nameField = c.input(R.string.script_name, UrlUtils.hostOf(startUrl))
         val form = c.vbox(20)
         form.add(nameField)
         val activity = requireActivity()
-        AlertDialog.Builder(c)
+        MaterialAlertDialogBuilder(c)
             .setTitle(R.string.save_automation)
             .setView(form)
-            .setPositiveButton(R.string.ok) { _, _ ->
-                val name = nameField.text.toString().trim().ifEmpty { UrlUtils.hostOf(startUrl) }
+            .setPositiveButton(R.string.save) { _, _ ->
+                val name = nameField.str().ifEmpty { UrlUtils.hostOf(startUrl) }
                 val actions = listOf(Action(ActionType.OPEN_URL, value = startUrl), Action(ActionType.WAIT_LOAD)) +
                     draft + Action(ActionType.SAVE_RESULTS)
                 val entity = ScriptEntity(name = name, url = startUrl, actionsJson = ActionJson.encode(actions))
@@ -568,7 +624,7 @@ class CreateFragment : Fragment() {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(activity, R.string.saved_ok, Toast.LENGTH_SHORT).show()
                         draft.clear()
-                        if (isAdded) updateCount()
+                        if (isAdded && view != null) updateCount()
                         activity.startActivity(Intent(activity, EditorActivity::class.java).putExtra(EditorActivity.EXTRA_ID, id))
                     }
                 }

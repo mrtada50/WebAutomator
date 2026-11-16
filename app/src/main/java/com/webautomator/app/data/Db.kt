@@ -82,6 +82,12 @@ interface ScriptDao {
     @Query("UPDATE scripts SET lastRunAt = :t, status = :s, lastMessage = :m, runsToday = :r, runsDay = :d WHERE id = :id")
     suspend fun updateRunInfo(id: Long, t: Long, s: String, m: String, r: Int, d: String)
 
+    @Query("UPDATE scripts SET enabled = :e WHERE id = :id")
+    suspend fun setEnabled(id: Long, e: Boolean)
+
+    @Query("UPDATE scripts SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
     @Query("UPDATE scripts SET status = :s WHERE id = :id")
     suspend fun updateStatus(id: Long, s: String)
 }

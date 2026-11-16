@@ -76,6 +76,10 @@ class MainActivity : AppCompatActivity() {
         handleEdit(intent)
     }
 
+    fun selectTab(id: Int) {
+        findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = id
+    }
+
     /** Opens the Create tab in "edit script" mode so the user re-picks elements on the real page. */
     private fun handleEdit(i: Intent) {
         val id = i.getLongExtra(EXTRA_EDIT_ID, 0L)

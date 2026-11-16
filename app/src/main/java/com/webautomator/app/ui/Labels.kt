@@ -5,9 +5,7 @@ import com.webautomator.app.R
 import com.webautomator.app.data.ActionType
 import com.webautomator.app.data.ConditionType
 import com.webautomator.app.data.NotifyMode
-import com.webautomator.app.data.RunEntity
 import com.webautomator.app.data.Status
-import com.webautomator.app.data.MapJson
 
 fun actionLabel(c: Context, t: ActionType): String = c.getString(
     when (t) {
@@ -28,15 +26,50 @@ fun actionLabel(c: Context, t: ActionType): String = c.getString(
     }
 )
 
-fun statusLabel(c: Context, name: String): String = c.getString(
-    when (name) {
-        Status.RUNNING.name -> R.string.st_running
-        Status.OK.name -> R.string.st_ok
-        Status.ERROR.name -> R.string.st_error
-        Status.NEEDS_ATTENTION.name -> R.string.st_attention
-        else -> R.string.st_idle
-    }
-)
+fun iconFor(t: ActionType): Int = when (t) {
+    ActionType.OPEN_URL, ActionType.NAVIGATE -> R.drawable.ic_link
+    ActionType.WAIT_LOAD, ActionType.WAIT -> R.drawable.ic_hourglass
+    ActionType.WAIT_ELEMENT -> R.drawable.ic_clock
+    ActionType.CLICK -> R.drawable.ic_cursor
+    ActionType.EXTRACT_TEXT -> R.drawable.ic_text
+    ActionType.EXTRACT_NUMBER -> R.drawable.ic_number
+    ActionType.EXTRACT_ATTR -> R.drawable.ic_link
+    ActionType.EXTRACT_TABLE -> R.drawable.ic_table
+    ActionType.EXTRACT_LIST -> R.drawable.ic_list
+    ActionType.REPEAT -> R.drawable.ic_refresh
+    ActionType.SAVE_RESULTS -> R.drawable.ic_download
+    ActionType.NOTIFY -> R.drawable.ic_notification
+}
+
+fun needsSelector(t: ActionType): Boolean = t == ActionType.WAIT_ELEMENT || t == ActionType.CLICK || t.isExtraction()
+
+fun needsValue(t: ActionType): Boolean =
+    t == ActionType.OPEN_URL || t == ActionType.NAVIGATE || t == ActionType.WAIT ||
+        t == ActionType.REPEAT || t == ActionType.NOTIFY
+
+fun usesTimeout(t: ActionType): Boolean =
+    needsSelector(t) || t == ActionType.OPEN_URL || t == ActionType.NAVIGATE || t == ActionType.WAIT_LOAD
+
+fun valueHint(t: ActionType): Int = when (t) {
+    ActionType.WAIT -> R.string.hint_ms
+    ActionType.REPEAT -> R.string.hint_times
+    ActionType.NOTIFY -> R.string.hint_message
+    else -> R.string.url_hint
+}
+
+class StatusStyle(val label: Int, val fg: Int, val bg: Int, val icon: Int)
+
+fun statusStyle(name: String): StatusStyle = when (name) {
+    Status.OK.name -> StatusStyle(R.string.st_ok, R.color.success, R.color.success_bg, R.drawable.ic_check_circle)
+    Status.RUNNING.name -> StatusStyle(R.string.st_running, R.color.brand, R.color.brand_container, R.drawable.ic_clock)
+    Status.ERROR.name -> StatusStyle(R.string.st_error, R.color.danger, R.color.danger_bg, R.drawable.ic_error)
+    Status.NEEDS_ATTENTION.name -> StatusStyle(R.string.st_attention, R.color.warning, R.color.warning_bg, R.drawable.ic_warning)
+    else -> StatusStyle(R.string.st_idle, R.color.text_secondary, R.color.stroke, R.drawable.ic_clock)
+}
+
+fun shortInterval(c: Context, minutes: Int): String =
+    if (minutes >= 60 && minutes % 60 == 0) c.getString(R.string.hour_fmt, minutes / 60)
+    else c.getString(R.string.min_fmt, minutes)
 
 fun notifyModeLabel(c: Context, m: NotifyMode): String = c.getString(
     when (m) {
@@ -78,22 +111,6 @@ fun errorText(c: Context, stored: String): String {
     }
     val label = if (res != 0) c.getString(res) else kind
     return if (detail.isNotBlank()) "$label: $detail" else label
-}
-
-fun bindRun(c: Context, box: android.widget.LinearLayout, r: RunEntity) {
-    box.add(c.tv("${r.scriptName} • ${fmtTime(r.timestamp)}", 13f, true))
-    if (r.success) {
-        val values = MapJson.decode(r.valuesJson)
-        val text = values.entries.joinToString("\n") { it.key + ": " + clipText(it.value) }
-        box.add(c.tv(text, 13f), top = 2)
-        if (r.changeSummary.isNotBlank()) {
-            box.add(c.tv(c.getString(R.string.changes) + "\n" + r.changeSummary, 12f), top = 4)
-        }
-    } else {
-        val t = c.tv(errorText(c, r.error), 13f)
-        t.setTextColor(android.graphics.Color.parseColor("#D32F2F"))
-        box.add(t, top = 2)
-    }
 }
 
 fun clipText(s: String, n: Int = 200): String = if (s.length > n) s.take(n) + "…" else s
